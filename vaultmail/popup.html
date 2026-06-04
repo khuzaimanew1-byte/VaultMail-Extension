@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaultMail</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="navbar">
+    <div class="navbar-brand">
+      <div class="brand-logo">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="22" height="22" rx="6" fill="#0066FF"/>
+          <path d="M4 8.5L11 13L18 8.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="4" y="6" width="14" height="10" rx="2" stroke="white" stroke-width="1.5"/>
+        </svg>
+      </div>
+      <span class="brand-name">VaultMail</span>
+    </div>
+    <button class="btn-add" id="btnAdd" aria-label="Add emails">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M7 1V13M1 7H13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="content" id="content">
+
+    <!-- Empty State -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="10" width="36" height="28" rx="5" stroke="#C8C8D0" stroke-width="2"/>
+          <path d="M6 17L24 27L42 17" stroke="#C8C8D0" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p class="empty-title">No emails saved yet</p>
+      <p class="empty-sub">Press + to add emails</p>
+    </div>
+
+    <!-- Email List -->
+    <div class="email-list" id="emailList"></div>
+
+  </main>
+
+  <!-- Modal Overlay -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal-card" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitle">Add Emails</h2>
+        <button class="btn-close" id="btnClose" aria-label="Close">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <textarea
+        id="emailInput"
+        class="email-textarea"
+        placeholder="Enter emails separated by commas or new lines&#10;&#10;john@example.com&#10;alex@example.com"
+        rows="7"
+        spellcheck="false"
+        autocomplete="off"
+      ></textarea>
+      <button class="btn-save" id="btnSave">Save Emails</button>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div class="toast" id="toast"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

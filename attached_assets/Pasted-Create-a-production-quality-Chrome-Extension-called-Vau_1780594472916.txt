@@ -1,0 +1,241 @@
+Create a production-quality Chrome Extension called **VaultMail**.
+
+Goal:
+A beautiful, ultra-clean email vault extension with Apple-level design quality, premium micro-interactions, smooth animations, excellent spacing, and a modern glassmorphism-inspired interface.
+
+Tech:
+
+* Chrome Extension Manifest V3
+* HTML
+* CSS
+* Vanilla JavaScript
+* No frameworks
+* Fully responsive popup UI
+* Clean component architecture
+
+========================================
+OVERALL DESIGN SYSTEM
+=====================
+
+Design philosophy:
+
+* Apple-level minimalism
+* Premium software feel
+* Focus on clarity and simplicity
+* Soft shadows
+* Layered depth
+* Smooth transitions
+* High visual hierarchy
+* No clutter
+* No sharp corners
+
+Visual style:
+
+* Large border radius (16px–24px)
+* Frosted glass panels
+* Soft blur effects
+* Elegant typography
+* Smooth easing animations
+* Spacious layout
+* Consistent spacing system
+
+Colors:
+
+* Pure white surfaces
+* Subtle gray backgrounds
+* Premium black typography
+* Soft blue accent color
+* Minimal color usage
+
+Animations:
+
+* Smooth 60fps animations
+* Hover lift effects
+* Button press feedback
+* Card appearance animations
+* Scale + fade transitions
+* Spring-like easing
+
+========================================
+EXTENSION LAYOUT
+================
+
+Popup size:
+
+* Width: 380px
+* Height: 600px
+
+Top Navigation Bar:
+
+Left side:
+
+* Replit logo
+* Text: "Replit"
+
+Right side:
+
+* Circular floating "+" button
+
+Navigation bar requirements:
+
+* Sticky at top
+* Glass effect
+* Premium spacing
+* Soft bottom border
+* High-end desktop app appearance
+
+========================================
+ADD EMAIL POPUP
+===============
+
+When "+" button is clicked:
+
+Open a centered modal.
+
+Modal design:
+
+* Glassmorphism card
+* Background blur
+* Scale-in animation
+* Soft shadow
+* Rounded corners
+
+Modal content:
+
+Title:
+"Add Emails"
+
+Textarea:
+
+* Large modern textarea
+* Placeholder:
+  "Enter emails separated by commas or new lines"
+
+Submit Button:
+"Save Emails"
+
+Button styling:
+
+* Full width
+* Premium blue gradient
+* Smooth hover animation
+* Slight lift effect
+
+========================================
+EMAIL INPUT PROCESSING
+======================
+
+User can paste emails like:
+
+[john@gmail.com](mailto:john@gmail.com)
+[alex@gmail.com](mailto:alex@gmail.com)
+
+or
+
+[john@gmail.com](mailto:john@gmail.com), [alex@gmail.com](mailto:alex@gmail.com), [sam@gmail.com](mailto:sam@gmail.com)
+
+System should:
+
+* Split by newline
+* Split by comma
+* Trim spaces
+* Remove duplicates
+* Ignore empty values
+* Store in chrome.storage.local
+
+========================================
+EMAIL CARD SYSTEM
+=================
+
+Each email should appear as an individual card.
+
+Important:
+Cards must NOT be large.
+
+Card requirements:
+
+* Compact height
+* Single-line layout
+* Premium spacing
+* Modern Apple-style appearance
+
+Each card contains:
+
+* Email address only
+
+No extra text.
+No timestamps.
+No descriptions.
+
+Card styling:
+
+* Rounded corners
+* Subtle border
+* Frosted glass effect
+* Hover elevation
+* Smooth appearance animation
+* Text truncation if needed
+
+Card interaction:
+
+* Hover slightly lifts card
+* Smooth shadow transition
+
+========================================
+EMPTY STATE
+===========
+
+When no emails exist:
+
+Show centered empty state.
+
+Content:
+
+* Elegant email icon
+* Text:
+  "No emails saved yet"
+
+Subtext:
+"Press + to add emails"
+
+Minimal and beautiful.
+
+========================================
+STORAGE
+=======
+
+Use chrome.storage.local
+
+Requirements:
+
+* Save emails permanently
+* Load automatically on startup
+* Instant UI updates after save
+
+========================================
+POLISH REQUIREMENTS
+===================
+
+Create a premium SaaS-quality experience.
+
+Focus heavily on:
+
+* Visual hierarchy
+* Typography
+* White space
+* Micro interactions
+* Animation quality
+* Accessibility
+* Smooth performance
+
+Avoid:
+
+* Generic extension UI
+* Bootstrap appearance
+* Material Design appearance
+* Large bulky cards
+* Clutter
+* Harsh shadows
+* Poor spacing
+
+The final result should feel like a premium Apple productivity application rather than a typical Chrome extension.
