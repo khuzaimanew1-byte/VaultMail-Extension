@@ -1,0 +1,221 @@
+Additional fixes required.
+
+The previous implementation is incomplete.
+
+========================================
+CRITICAL ISSUE #1
+TABS BAR NOT VISIBLE
+====================
+
+The Emails / Preview tab system is either missing or not visually obvious.
+
+Rebuild it completely.
+
+Requirements:
+
+Position:
+Directly below the Replit workspace bar.
+
+Layout:
+
+┌─────────────────────┐
+│ Emails | Preview    │
+└─────────────────────┘
+
+Style:
+Apple segmented control.
+
+Container:
+
+* Height: 34px
+* Radius: 12px
+* Dark surface
+* Thin border
+* Compact spacing
+
+Active tab:
+
+* Elevated surface
+* Smooth animation
+* Clear visual state
+
+Inactive tab:
+
+* Lower contrast
+
+The tabs must be immediately visible.
+
+No hidden implementation.
+
+No conditional rendering bugs.
+
+========================================
+TAB VISIBILITY LOGIC
+====================
+
+Always show:
+
+Emails
+
+Show:
+
+Preview
+
+only when currentActiveEmail exists.
+
+Examples:
+
+No active email:
+
+[ Emails ]
+
+Active email exists:
+
+[ Emails | Preview ]
+
+========================================
+EMAILS TAB
+==========
+
+Displays:
+
+* saved email grid
+* count
+
+========================================
+PREVIEW TAB
+===========
+
+Displays:
+
+Current Active Email
+
+with compact card styling.
+
+========================================
+CRITICAL ISSUE #2
+REPLIT BAR TOO TALL
+===================
+
+The Replit workspace bar currently consumes too much vertical space.
+
+Reduce height significantly.
+
+Current feeling:
+Toolbar
+
+Desired feeling:
+Compact navigation strip
+
+Target:
+
+Height:
+42px
+
+Maximum:
+44px
+
+========================================
+REPLIT BAR LAYOUT
+=================
+
+Left:
+
+Official Replit logo
+Replit text
+
+Gap:
+6px
+
+Right:
+
+Add button
+
+Everything vertically centered.
+
+========================================
+ADD BUTTON SIZE
+===============
+
+Current button is visually oversized.
+
+Reduce to:
+
+34px × 34px
+
+Requirements:
+
+* Circle
+* Blue accent
+* Hover scale
+* Compact appearance
+
+========================================
+HEADER DENSITY PASS
+===================
+
+Reduce vertical footprint of all top sections.
+
+Target structure:
+
+VaultMail Header
+≈ 48px
+
+Replit Workspace Bar
+≈ 42px
+
+Tabs Bar
+≈ 34px
+
+Total combined height should remain compact.
+
+The user should see more emails immediately without scrolling.
+
+========================================
+COUNT POSITION
+==============
+
+Move count directly below tabs.
+
+Compact style:
+
+33
+
+Only.
+
+No extra labels.
+
+No Vault text.
+
+No oversized typography.
+
+Use:
+
+.stat-number {
+font-size: 16px;
+font-weight: 500;
+}
+
+========================================
+OVERALL GOAL
+============
+
+Top area currently feels oversized.
+
+Convert it into a dense productivity layout.
+
+Priorities:
+
+1. More visible emails
+2. Less header height
+3. Clearly visible tab system
+4. Faster scanning
+5. Better space efficiency
+
+The extension should feel closer to:
+
+* Raycast
+* Linear
+* Arc Sidebar
+
+and less like a dashboard.
