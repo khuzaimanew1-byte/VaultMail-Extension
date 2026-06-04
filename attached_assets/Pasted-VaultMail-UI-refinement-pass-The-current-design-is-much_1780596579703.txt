@@ -1,0 +1,248 @@
+VaultMail UI refinement pass.
+
+The current design is much better, but several UI decisions are reducing information density and visual focus.
+
+Apply the following changes.
+
+========================================
+
+1. REMOVE DOMAIN COMPLETELY
+   ========================================
+
+Delete the domain line from every card.
+
+Remove examples like:
+
+gmail.com
+proton.me
+mailbox.org
+
+Reason:
+
+The domain provides almost no value because it is already visible inside the email address.
+
+It creates:
+
+* visual noise
+* unnecessary vertical space
+* weaker scan speed
+
+Each card should show:
+
+Email only
+
+Nothing underneath.
+
+========================================
+2. REDUCE CARD HEIGHT SIGNIFICANTLY
+===================================
+
+Current cards are too tall.
+
+Target:
+
+56px–64px maximum height.
+
+The UI should display many emails without excessive scrolling.
+
+Reduce:
+
+* top padding
+* bottom padding
+* internal spacing
+
+Cards should feel compact and efficient.
+
+Reference:
+Apple Passwords list density.
+
+========================================
+3. REMOVE ICON EMPHASIS
+=======================
+
+Current email icon attracts too much attention.
+
+The email address should be the primary focus.
+
+Current hierarchy:
+
+1. Icon
+2. Email
+
+This is wrong.
+
+Desired hierarchy:
+
+1. Email
+2. Card
+3. Actions
+4. Icon
+
+The icon should become:
+
+* Smaller
+* Lower opacity
+* Decorative only
+
+Size:
+12px–14px
+
+Opacity:
+40%
+
+========================================
+4. REBUILD CARD LAYOUT
+======================
+
+Current structure:
+
+[Icon]
+Email
+
+New structure:
+
+[small icon] Email Address
+
+Single horizontal row.
+
+No stacked layout.
+
+No second line.
+
+No domain.
+
+No extra metadata.
+
+Example:
+
+✉ [khuzaimaextra1@gmail.com](mailto:khuzaimaextra1@gmail.com)
+
+Compact.
+
+Fast scanning.
+
+Maximum density.
+
+========================================
+5. NORMALIZE COUNT DISPLAY
+==========================
+
+Current count:
+
+33
+VAULT
+
+Feels oversized and disconnected.
+
+Replace with:
+
+33
+
+Only.
+
+Or:
+
+33 Emails
+
+No "Vault" label.
+
+No giant typography.
+
+No decorative statistics section.
+
+Keep it minimal.
+
+========================================
+6. REDUCE OVERALL EXTENSION HEIGHT
+==================================
+
+Current popup height feels unnecessarily large.
+
+Reduce extension popup height by approximately 15–20%.
+
+Goal:
+
+Less empty space.
+More focused workspace.
+
+Viewport should feel dense and productive.
+
+========================================
+7. USE REAL REPLIT BRANDING
+===========================
+
+Current Replit mark is not accurate.
+
+Replace with:
+
+Official modern Replit logo.
+
+Use correct proportions.
+
+Use official brand asset.
+
+Workspace bar should feel authentic.
+
+========================================
+8. IMPROVE EMAIL SCANNING SPEED
+===============================
+
+Optimize specifically for rapid visual scanning.
+
+Requirements:
+
+* Email starts near left edge
+* Consistent alignment
+* Equal card heights
+* Reduced whitespace
+* Better typography contrast
+
+A user should identify an email in under 1 second.
+
+========================================
+9. HOVER ACTIONS
+================
+
+Copy and Delete actions should remain hidden.
+
+Reveal only on hover.
+
+Use:
+
+* Fade in
+* Slight slide animation
+
+Do not permanently occupy space.
+
+========================================
+10. DESIGN GOAL
+===============
+
+Current feel:
+
+Mini dashboard.
+
+Desired feel:
+
+A compact email vault.
+
+Think:
+
+* Apple Passwords
+* Raycast Lists
+* Arc Sidebar
+* Linear Command Menu
+
+Less dashboard.
+More utility.
+
+Less decoration.
+More information density.
+
+Every design decision should prioritize:
+
+* scan speed
+* compactness
+* focus on email content
+* minimal cognitive load
+* premium dark aesthetic

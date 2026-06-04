@@ -53,10 +53,6 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function getDomain(email) {
-  return email.split('@')[1] || '';
-}
-
 // ============================================================
 // RENDERING
 // ============================================================
@@ -64,9 +60,9 @@ function getDomain(email) {
 function renderGrid() {
   const hasEmails = emails.length > 0;
 
-  emptyState.style.display  = hasEmails ? 'none'  : 'flex';
-  emailGrid.style.display   = hasEmails ? 'grid'  : 'none';
-  statsRow.style.display    = hasEmails ? 'flex'  : 'none';
+  emptyState.style.display = hasEmails ? 'none' : 'flex';
+  emailGrid.style.display  = hasEmails ? 'grid' : 'none';
+  statsRow.style.display   = hasEmails ? 'flex' : 'none';
 
   if (!hasEmails) return;
 
@@ -74,36 +70,33 @@ function renderGrid() {
   emailGrid.innerHTML   = '';
 
   emails.forEach((email, index) => {
-    const card = createCard(email, index);
-    emailGrid.appendChild(card);
+    emailGrid.appendChild(createCard(email, index));
   });
 }
 
 function createCard(email, index) {
-  const domain = getDomain(email);
-  const card   = document.createElement('div');
+  const card = document.createElement('div');
   card.className = 'email-card';
-  card.style.animationDelay = `${index * 28}ms`;
+  card.style.animationDelay = `${index * 25}ms`;
 
   card.innerHTML = `
     <div class="card-icon">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="1" y="2.5" width="10" height="7" rx="1.5" stroke="currentColor" stroke-width="1.2"/>
-        <path d="M1 4.5L6 7.5L11 4.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="1" y="2" width="9" height="7" rx="1.4" stroke="currentColor" stroke-width="1.15"/>
+        <path d="M1 4L5.5 6.8L10 4" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
       </svg>
     </div>
     <span class="card-email" title="${email}">${email}</span>
-    <span class="card-domain">${domain}</span>
     <div class="card-actions">
-      <button class="btn-icon btn-copy" data-email="${email}" aria-label="Copy" title="Copy">
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <rect x="3.5" y="1" width="6.5" height="7.5" rx="1.3" stroke="currentColor" stroke-width="1.2"/>
-          <path d="M2.5 3.5H2A1.2 1.2 0 0 0 .8 4.7V9.5C.8 10.1 1.3 10.5 2 10.5H6.5C7.1 10.5 7.5 10 7.5 9.5V9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      <button class="btn-icon btn-copy" aria-label="Copy" title="Copy">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <rect x="3" y="1" width="6" height="7" rx="1.2" stroke="currentColor" stroke-width="1.15"/>
+          <path d="M2 3H1.8A1.1 1.1 0 0 0 .7 4.1V8.3C.7 8.9 1.1 9.3 1.7 9.3H5.9C6.5 9.3 6.9 8.9 6.9 8.3V8" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
         </svg>
       </button>
-      <button class="btn-icon btn-delete" data-email="${email}" aria-label="Delete" title="Delete">
-        <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
-          <path d="M1.5 3H9.5M3.5 3V2C3.5 1.7 3.7 1.5 4 1.5H7C7.3 1.5 7.5 1.7 7.5 2V3M4.5 5V8.5M6.5 5V8.5M2.5 3L3 9C3 9.3 3.3 9.5 3.6 9.5H7.4C7.7 9.5 8 9.3 8 9L8.5 3" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <button class="btn-icon btn-delete" aria-label="Delete" title="Delete">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M1 2.5H9M3 2.5V1.8C3 1.4 3.4 1 3.8 1H6.2C6.6 1 7 1.4 7 1.8V2.5M4 4.5V7.5M6 4.5V7.5M2 2.5L2.5 8.2C2.5 8.6 2.8 9 3.2 9H6.8C7.2 9 7.5 8.6 7.5 8.2L8 2.5" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     </div>
@@ -137,7 +130,6 @@ function copyEmail(email) {
     document.body.removeChild(ta);
     showToast('Copied');
   };
-
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(email).then(() => showToast('Copied')).catch(fallback);
   } else {
@@ -181,7 +173,7 @@ function handleSave() {
 function openModal() {
   modalOverlay.classList.add('open');
   emailInput.value = '';
-  setTimeout(() => emailInput.focus(), 200);
+  setTimeout(() => emailInput.focus(), 190);
 }
 
 function closeModal() {
@@ -198,7 +190,7 @@ function showToast(msg) {
   toast.textContent = msg;
   toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2100);
 }
 
 // ============================================================
