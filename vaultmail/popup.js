@@ -334,6 +334,11 @@ chrome.runtime.onMessage.addListener((message) => {
       renderPreview();
       break;
 
+    case 'FORM_CLEARED':
+      formDetected = false;
+      renderPreview();
+      break;
+
     case 'REPLIT_STATUS_CHANGED':
       replitActive = message.active;
       if (!message.active) {

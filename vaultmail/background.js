@@ -56,7 +56,7 @@ chrome.tabs.query({}, (tabs) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
-  // Login form became visible on Replit
+  // Login form visible (URL-confirmed by content script)
   if (message.type === 'FORM_DETECTED') {
     chrome.storage.local.set({ formDetected: true }, () => {
       broadcastToPopup({ type: 'FORM_DETECTED' });
@@ -64,22 +64,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
-  // User submitted the email (clicked Continue / pressed Enter)
-  if (message.type === 'EMAIL_SUBMITTED') {
-    const { email } = message;
-    if (email) {
-      chrome.storage.local.set({ currentActiveEmail: email, formDetected: true }, () => {
-        broadcastToPopup({ type: 'EMAIL_SUBMITTED', email });
-        sendResponse({ ok: true });
-      });
-      return true;
-    }
+  // Login form gone (navigated away without completing login)
+  if (message.type === 'FORM_CLEARED') {
+    chrome.storage.local.set({ formDetected: false }, () => {
+      broadcastToPopup({ type: 'FORM_CLEARED' });
+    });
+    return;
   }
 
   // Page redirected to /~ — login completed
   if (message.type === 'LOGIN_SUCCESS') {
     const { email } = message;
-    const updates = { formDetected: false };
+    const updates = { formDetected: false, pendingEmail: null };
     if (email) updates.currentActiveEmail = email;
 
     chrome.storage.local.set(updates, () => {
