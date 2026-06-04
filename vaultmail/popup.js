@@ -4,32 +4,48 @@
 // STATE
 // ============================================================
 
-let emails = [];
+let emails          = [];
+let currentActiveEmail = null;
+let activeTab       = 'emails';
+let pendingDelete   = null;  // email string pending deletion
 
 // ============================================================
 // DOM REFS
 // ============================================================
 
-const btnAdd       = document.getElementById('btnAdd');
-const btnClose     = document.getElementById('btnClose');
-const btnSave      = document.getElementById('btnSave');
-const btnEmptyCta  = document.getElementById('btnEmptyCta');
-const modalOverlay = document.getElementById('modalOverlay');
-const emailInput   = document.getElementById('emailInput');
-const emailGrid    = document.getElementById('emailGrid');
-const emptyState   = document.getElementById('emptyState');
-const statsRow     = document.getElementById('statsRow');
-const statCount    = document.getElementById('statCount');
-const toast        = document.getElementById('toast');
+const btnAdd          = document.getElementById('btnAdd');
+const btnClose        = document.getElementById('btnClose');
+const btnSave         = document.getElementById('btnSave');
+const btnEmptyCta     = document.getElementById('btnEmptyCta');
+const btnCopyPreview  = document.getElementById('btnCopyPreview');
+const btnDeleteCancel = document.getElementById('btnDeleteCancel');
+const btnDeleteConfirm= document.getElementById('btnDeleteConfirm');
+
+const modalOverlay    = document.getElementById('modalOverlay');
+const deleteOverlay   = document.getElementById('deleteOverlay');
+const emailInput      = document.getElementById('emailInput');
+const emailGrid       = document.getElementById('emailGrid');
+const emptyState      = document.getElementById('emptyState');
+const statsRow        = document.getElementById('statsRow');
+const statCount       = document.getElementById('statCount');
+const toast           = document.getElementById('toast');
+const tabBar          = document.getElementById('tabBar');
+const tabEmails       = document.getElementById('tabEmails');
+const tabPreview      = document.getElementById('tabPreview');
+const panelEmails     = document.getElementById('panelEmails');
+const panelPreview    = document.getElementById('panelPreview');
+const previewEmail    = document.getElementById('previewEmail');
+const deleteTarget    = document.getElementById('deleteTarget');
 
 // ============================================================
-// STORAGE
+// STORAGE LOAD
 // ============================================================
 
-function loadEmails() {
-  chrome.storage.local.get(['vaultmail_emails'], (result) => {
-    emails = result.vaultmail_emails || [];
-    renderGrid();
+function loadState(callback) {
+  chrome.storage.local.get(['vaultmail_emails', 'currentActiveEmail'], (result) => {
+    emails             = result.vaultmail_emails    || [];
+    currentActiveEmail = result.currentActiveEmail  || null;
+    callback();
   });
 }
 
@@ -54,7 +70,32 @@ function isValidEmail(email) {
 }
 
 // ============================================================
-// RENDERING
+// TABS
+// ============================================================
+
+function updateTabBarVisibility() {
+  const show = Boolean(currentActiveEmail);
+  tabBar.style.display = show ? 'flex' : 'none';
+  document.body.classList.toggle('has-tabs', show);
+
+  // If no active email and user is on preview tab, snap back to emails
+  if (!show && activeTab === 'preview') {
+    switchTab('emails');
+  }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+
+  tabEmails.classList.toggle('active', tab === 'emails');
+  tabPreview.classList.toggle('active', tab === 'preview');
+
+  panelEmails.style.display  = tab === 'emails'  ? 'block' : 'none';
+  panelPreview.style.display = tab === 'preview' ? 'block' : 'none';
+}
+
+// ============================================================
+// RENDERING — EMAIL GRID
 // ============================================================
 
 function renderGrid() {
@@ -77,26 +118,26 @@ function renderGrid() {
 function createCard(email, index) {
   const card = document.createElement('div');
   card.className = 'email-card';
-  card.style.animationDelay = `${index * 25}ms`;
+  card.style.animationDelay = `${index * 22}ms`;
 
   card.innerHTML = `
     <div class="card-icon">
-      <svg width="11" height="11" viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect x="1" y="2" width="9" height="7" rx="1.4" stroke="currentColor" stroke-width="1.15"/>
-        <path d="M1 4L5.5 6.8L10 4" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+      <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+        <rect x="1" y="2" width="8" height="6.5" rx="1.3" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M1 3.5L5 6.2L9 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
       </svg>
     </div>
     <span class="card-email" title="${email}">${email}</span>
     <div class="card-actions">
       <button class="btn-icon btn-copy" aria-label="Copy" title="Copy">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <rect x="3" y="1" width="6" height="7" rx="1.2" stroke="currentColor" stroke-width="1.15"/>
-          <path d="M2 3H1.8A1.1 1.1 0 0 0 .7 4.1V8.3C.7 8.9 1.1 9.3 1.7 9.3H5.9C6.5 9.3 6.9 8.9 6.9 8.3V8" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>
+          <rect x="3" y="1" width="6" height="7" rx="1.2" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M2 3H1.8A1.1 1.1 0 0 0 .7 4.1V8.2C.7 8.8 1.1 9.2 1.7 9.2H5.9C6.5 9.2 6.9 8.8 6.9 8.2V8" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
         </svg>
       </button>
       <button class="btn-icon btn-delete" aria-label="Delete" title="Delete">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M1 2.5H9M3 2.5V1.8C3 1.4 3.4 1 3.8 1H6.2C6.6 1 7 1.4 7 1.8V2.5M4 4.5V7.5M6 4.5V7.5M2 2.5L2.5 8.2C2.5 8.6 2.8 9 3.2 9H6.8C7.2 9 7.5 8.6 7.5 8.2L8 2.5" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 2.5H9M3 2.5V1.8C3 1.4 3.4 1 3.8 1H6.2C6.6 1 7 1.4 7 1.8V2.5M4 4.5V7.5M6 4.5V7.5M2 2.5L2.5 8.2C2.5 8.6 2.8 9 3.2 9H6.8C7.2 9 7.5 8.6 7.5 8.2L8 2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     </div>
@@ -104,45 +145,65 @@ function createCard(email, index) {
 
   card.querySelector('.btn-copy').addEventListener('click', e => {
     e.stopPropagation();
-    copyEmail(email);
+    copyToClipboard(email, 'Copied');
   });
 
   card.querySelector('.btn-delete').addEventListener('click', e => {
     e.stopPropagation();
-    deleteEmail(email, card);
+    openDeleteModal(email);
   });
 
   return card;
 }
 
 // ============================================================
-// ACTIONS
+// RENDERING — PREVIEW PANEL
 // ============================================================
 
-function copyEmail(email) {
+function renderPreview() {
+  if (currentActiveEmail) {
+    previewEmail.textContent = currentActiveEmail;
+    btnCopyPreview.style.display = 'flex';
+  } else {
+    previewEmail.textContent = '—';
+    btnCopyPreview.style.display = 'none';
+  }
+}
+
+// ============================================================
+// CLIPBOARD
+// ============================================================
+
+function copyToClipboard(text, toastMsg) {
   const fallback = () => {
     const ta = document.createElement('textarea');
-    ta.value = email;
+    ta.value = text;
     ta.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(ta);
     ta.select();
     document.execCommand('copy');
     document.body.removeChild(ta);
-    showToast('Copied');
+    showToast(toastMsg);
   };
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(email).then(() => showToast('Copied')).catch(fallback);
+    navigator.clipboard.writeText(text).then(() => showToast(toastMsg)).catch(fallback);
   } else {
     fallback();
   }
 }
 
-function deleteEmail(email, cardEl) {
-  cardEl.classList.add('card-removing');
-  cardEl.addEventListener('animationend', () => {
-    emails = emails.filter(e => e !== email);
-    saveEmails(() => renderGrid());
-  }, { once: true });
+// ============================================================
+// ADD MODAL
+// ============================================================
+
+function openAddModal() {
+  modalOverlay.classList.add('open');
+  emailInput.value = '';
+  setTimeout(() => emailInput.focus(), 180);
+}
+
+function closeAddModal() {
+  modalOverlay.classList.remove('open');
 }
 
 function handleSave() {
@@ -150,34 +211,53 @@ function handleSave() {
   if (!raw) return;
 
   const parsed = parseEmails(raw);
-  if (parsed.length === 0) {
-    showToast('No valid emails found');
-    return;
-  }
+  if (parsed.length === 0) { showToast('No valid emails found'); return; }
 
   const before = emails.length;
   emails = [...new Set([...emails, ...parsed])];
   const added = emails.length - before;
 
   saveEmails(() => {
-    closeModal();
+    closeAddModal();
     renderGrid();
     showToast(added === 0 ? 'Already saved' : `${added} email${added !== 1 ? 's' : ''} saved`);
   });
 }
 
 // ============================================================
-// MODAL
+// DELETE CONFIRMATION MODAL
 // ============================================================
 
-function openModal() {
-  modalOverlay.classList.add('open');
-  emailInput.value = '';
-  setTimeout(() => emailInput.focus(), 190);
+function openDeleteModal(email) {
+  pendingDelete = email;
+  deleteTarget.textContent = email;
+  deleteOverlay.classList.add('open');
 }
 
-function closeModal() {
-  modalOverlay.classList.remove('open');
+function closeDeleteModal() {
+  deleteOverlay.classList.remove('open');
+  pendingDelete = null;
+}
+
+function confirmDelete() {
+  if (!pendingDelete) return;
+  const target = pendingDelete;
+  closeDeleteModal();
+
+  // Animate card out before removing from data
+  const card = [...emailGrid.querySelectorAll('.email-card')]
+    .find(c => c.querySelector('.card-email')?.title === target);
+
+  if (card) {
+    card.classList.add('card-removing');
+    card.addEventListener('animationend', () => {
+      emails = emails.filter(e => e !== target);
+      saveEmails(() => renderGrid());
+    }, { once: true });
+  } else {
+    emails = emails.filter(e => e !== target);
+    saveEmails(() => renderGrid());
+  }
 }
 
 // ============================================================
@@ -194,25 +274,69 @@ function showToast(msg) {
 }
 
 // ============================================================
-// EVENTS
+// RUNTIME MESSAGE LISTENER (from background / content script)
 // ============================================================
 
-btnAdd.addEventListener('click', openModal);
-btnEmptyCta.addEventListener('click', openModal);
-btnClose.addEventListener('click', closeModal);
-btnSave.addEventListener('click', handleSave);
-
-modalOverlay.addEventListener('click', e => {
-  if (e.target === modalOverlay) closeModal();
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'ACTIVE_EMAIL_UPDATED' && message.email) {
+    currentActiveEmail = message.email;
+    updateTabBarVisibility();
+    renderPreview();
+  }
+  if (message.type === 'URL_CHANGED') {
+    // Re-read storage to stay in sync after navigation
+    chrome.storage.local.get(['currentActiveEmail'], (result) => {
+      currentActiveEmail = result.currentActiveEmail || null;
+      updateTabBarVisibility();
+      renderPreview();
+    });
+  }
 });
 
+// ============================================================
+// EVENT LISTENERS
+// ============================================================
+
+btnAdd.addEventListener('click', openAddModal);
+btnEmptyCta.addEventListener('click', openAddModal);
+btnClose.addEventListener('click', closeAddModal);
+btnSave.addEventListener('click', handleSave);
+
+btnCopyPreview.addEventListener('click', () => {
+  if (currentActiveEmail) copyToClipboard(currentActiveEmail, 'Copied');
+});
+
+btnDeleteCancel.addEventListener('click', closeDeleteModal);
+btnDeleteConfirm.addEventListener('click', confirmDelete);
+
+tabEmails.addEventListener('click', () => switchTab('emails'));
+tabPreview.addEventListener('click', () => switchTab('preview'));
+
+// Close modals on backdrop click
+modalOverlay.addEventListener('click', e => {
+  if (e.target === modalOverlay) closeAddModal();
+});
+deleteOverlay.addEventListener('click', e => {
+  if (e.target === deleteOverlay) closeDeleteModal();
+});
+
+// Keyboard shortcuts
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && modalOverlay.classList.contains('open')) closeModal();
-  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && modalOverlay.classList.contains('open')) handleSave();
+  if (e.key === 'Escape') {
+    if (deleteOverlay.classList.contains('open')) closeDeleteModal();
+    else if (modalOverlay.classList.contains('open')) closeAddModal();
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && modalOverlay.classList.contains('open')) {
+    handleSave();
+  }
 });
 
 // ============================================================
 // INIT
 // ============================================================
 
-loadEmails();
+loadState(() => {
+  updateTabBarVisibility();
+  renderGrid();
+  renderPreview();
+});

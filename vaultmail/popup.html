@@ -21,7 +21,7 @@
       <span class="app-brand-name">VaultMail</span>
     </div>
     <button class="btn-settings" aria-label="Settings">
-      <svg width="15" height="15" viewBox="0 0 15 15" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
         <circle cx="7.5" cy="7.5" r="2.2" stroke="currentColor" stroke-width="1.3"/>
         <path d="M7.5 1.5V2.8M7.5 12.2V13.5M1.5 7.5H2.8M12.2 7.5H13.5M3.2 3.2L4.1 4.1M10.9 10.9L11.8 11.8M3.2 11.8L4.1 10.9M10.9 4.1L11.8 3.2" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
       </svg>
@@ -31,7 +31,6 @@
   <!-- ── Header 2: Workspace Bar ── -->
   <div class="workspace-bar">
     <div class="workspace-brand">
-      <!-- Official Replit mark -->
       <svg class="replit-mark" width="14" height="16" viewBox="0 0 14 16" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="0" y="0"  width="7" height="5" rx="1" fill="#F26207"/>
         <rect x="7" y="5"  width="7" height="6" rx="1" fill="#F26207"/>
@@ -40,44 +39,70 @@
       <span class="workspace-label">Replit</span>
     </div>
     <button class="btn-add" id="btnAdd" aria-label="Add emails">
-      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
         <path d="M6 1V11M1 6H11" stroke="white" stroke-width="2" stroke-linecap="round"/>
       </svg>
     </button>
   </div>
 
+  <!-- ── Tab Bar (visible only when Preview tab is available) ── -->
+  <div class="tab-bar" id="tabBar" style="display:none">
+    <button class="tab-btn active" id="tabEmails" data-tab="emails">Emails</button>
+    <button class="tab-btn" id="tabPreview" data-tab="preview">Preview</button>
+  </div>
+
   <!-- ── Main Scroll Area ── -->
   <main class="content" id="content">
 
-    <!-- Stats -->
-    <div class="stats-row" id="statsRow" style="display:none">
-      <span class="stat-number" id="statCount">0</span>
-      <span class="stat-label">Emails</span>
-    </div>
+    <!-- ═══ EMAILS TAB ═══ -->
+    <div id="panelEmails">
 
-    <!-- Empty State -->
-    <div class="empty-state" id="emptyState">
-      <div class="empty-icon">
-        <svg width="44" height="44" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="5" y="9" width="34" height="26" rx="5" stroke="rgba(255,255,255,0.1)" stroke-width="1.6"/>
-          <path d="M5 15.5L22 26L39 15.5" stroke="rgba(255,255,255,0.1)" stroke-width="1.6" stroke-linecap="round"/>
-        </svg>
+      <!-- Stats -->
+      <div class="stats-row" id="statsRow" style="display:none">
+        <span class="stat-number" id="statCount">0</span>
+        <span class="stat-label">Emails</span>
       </div>
-      <p class="empty-title">No Emails Saved</p>
-      <p class="empty-desc">Store and organize your email collection.</p>
-      <button class="btn-empty-cta" id="btnEmptyCta">Add Emails</button>
+
+      <!-- Empty State -->
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">
+          <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+            <rect x="5" y="9" width="34" height="26" rx="5" stroke="rgba(255,255,255,0.1)" stroke-width="1.6"/>
+            <path d="M5 15.5L22 26L39 15.5" stroke="rgba(255,255,255,0.1)" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <p class="empty-title">No Emails Saved</p>
+        <p class="empty-desc">Store and organize your email collection.</p>
+        <button class="btn-empty-cta" id="btnEmptyCta">Add Emails</button>
+      </div>
+
+      <!-- Email Grid -->
+      <div class="email-grid" id="emailGrid"></div>
+
     </div>
 
-    <!-- Email Grid -->
-    <div class="email-grid" id="emailGrid"></div>
+    <!-- ═══ PREVIEW TAB ═══ -->
+    <div id="panelPreview" style="display:none">
+      <div class="preview-panel">
+        <p class="preview-eyebrow">Currently Active</p>
+        <p class="preview-email" id="previewEmail">—</p>
+        <button class="btn-copy-preview" id="btnCopyPreview">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <rect x="3.5" y="1" width="7.5" height="9" rx="1.3" stroke="currentColor" stroke-width="1.2"/>
+            <path d="M3 3.5H2.5A1.3 1.3 0 0 0 1.2 4.8V9.5C1.2 10.2 1.7 10.8 2.5 10.8H7C7.7 10.8 8.2 10.2 8.2 9.5V9.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+          Copy
+        </button>
+      </div>
+    </div>
 
   </main>
 
-  <!-- ── Add Modal ── -->
+  <!-- ── Add Email Modal ── -->
   <div class="modal-overlay" id="modalOverlay">
-    <div class="modal-card" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitleAdd">
       <div class="modal-header">
-        <h2 class="modal-title" id="modalTitle">Add Emails</h2>
+        <h2 class="modal-title" id="modalTitleAdd">Add Emails</h2>
         <button class="btn-close" id="btnClose" aria-label="Close">
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
             <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
@@ -93,6 +118,21 @@
         autocomplete="off"
       ></textarea>
       <button class="btn-save" id="btnSave">Save Emails</button>
+    </div>
+  </div>
+
+  <!-- ── Delete Confirmation Modal ── -->
+  <div class="modal-overlay" id="deleteOverlay">
+    <div class="modal-card modal-card--danger" role="dialog" aria-modal="true" aria-labelledby="modalTitleDelete">
+      <div class="modal-header">
+        <h2 class="modal-title" id="modalTitleDelete">Delete Email?</h2>
+      </div>
+      <p class="delete-desc">This email will be permanently removed from VaultMail.</p>
+      <p class="delete-target" id="deleteTarget"></p>
+      <div class="delete-actions">
+        <button class="btn-cancel" id="btnDeleteCancel">Cancel</button>
+        <button class="btn-danger" id="btnDeleteConfirm">Delete</button>
+      </div>
     </div>
   </div>
 

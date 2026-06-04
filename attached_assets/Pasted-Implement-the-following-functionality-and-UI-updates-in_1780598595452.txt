@@ -1,0 +1,315 @@
+Implement the following functionality and UI updates in VaultMail.
+
+========================================
+EXTENSION ACTIVATION LOGIC
+==========================
+
+The extension should automatically activate whenever the user is anywhere on Replit.
+
+Match URLs using:
+
+https://replit.com/*
+
+Do NOT target a specific page.
+
+If the current tab URL starts with:
+
+https://replit.com/
+
+the content script should become active.
+
+Examples that should activate:
+
+https://replit.com/
+https://replit.com/login
+https://replit.com/@username
+https://replit.com/repls
+https://replit.com/~
+https://replit.com/anything
+
+========================================
+BACKGROUND MONITORING
+=====================
+
+The extension should continue monitoring Replit tabs even if the user is not currently focused on that tab.
+
+Example:
+
+* Replit tab is open
+* User switches to another tab
+* Extension continues watching the Replit page
+
+Use:
+
+* background service worker
+* tab update listeners
+* message passing
+
+Do not require the user to be actively viewing the Replit tab.
+
+========================================
+EMAIL SUBMISSION MEMORY
+=======================
+
+When the user enters an email and clicks the submit button, store that email as:
+
+currentActiveEmail
+
+Persist using:
+
+chrome.storage.local
+
+The email must survive:
+
+* popup close
+* browser refresh
+* tab refresh
+* extension popup reopen
+
+========================================
+TARGET ELEMENTS
+===============
+
+Email input selector:
+
+#username-:rv:
+
+Submit button selector:
+
+#react-aria1080582148-:r1c:
+
+When the button is pressed:
+
+1. Read the email value
+2. Save it as currentActiveEmail
+3. Persist it in chrome.storage.local
+
+========================================
+REDIRECT DETECTION
+==================
+
+After submission, monitor navigation.
+
+If the page redirects to:
+
+https://replit.com/~*
+
+Then keep the same email remembered.
+
+Do NOT clear currentActiveEmail.
+
+Example:
+
+Enter:
+[john@gmail.com](mailto:john@gmail.com)
+
+Click submit.
+
+User lands on:
+
+https://replit.com/~john
+
+currentActiveEmail remains:
+
+[john@gmail.com](mailto:john@gmail.com)
+
+========================================
+TOP NAVIGATION TABS
+===================
+
+Under the Replit workspace bar create tabs.
+
+Tabs:
+
+Emails
+Preview
+
+Apple-style segmented control.
+
+========================================
+EMAILS TAB
+==========
+
+Default tab.
+
+Displays:
+
+* All saved emails
+* Existing vault functionality
+
+========================================
+PREVIEW TAB
+===========
+
+Displays:
+
+Current remembered email
+
+Example:
+
+Currently Active
+
+[john@gmail.com](mailto:john@gmail.com)
+
+========================================
+PREVIEW TAB VISIBILITY LOGIC
+============================
+
+Hide Preview tab when:
+
+currentActiveEmail is empty
+
+Show Preview tab when:
+
+currentActiveEmail exists
+
+The UI should dynamically appear/disappear.
+
+========================================
+EMAIL COUNT STYLE
+=================
+
+Update count typography.
+
+Use:
+
+.stat-number {
+font-size: 16px;
+font-weight: 500;
+}
+
+Do not use oversized counters.
+
+Keep compact and utility-focused.
+
+========================================
+EMAIL CARD SIZE UPDATE
+======================
+
+Update card dimensions.
+
+Use:
+
+height: 35px;
+padding: 0 7px;
+
+Cards should become highly compact.
+
+Goal:
+
+Maximum email density.
+
+========================================
+CARD CONTENT
+============
+
+Single-row layout.
+
+Structure:
+
+[small icon] email address
+
+No:
+
+* domain
+* second line
+* metadata
+
+========================================
+ICON SIZE UPDATE
+================
+
+Update action icons.
+
+Use:
+
+.btn-icon {
+width: 13px;
+height: 13px;
+}
+
+Apply to:
+
+* copy button
+* delete button
+
+========================================
+DELETE CONFIRMATION MODAL
+=========================
+
+When Delete is clicked:
+
+Do NOT delete immediately.
+
+Show confirmation modal.
+
+Modal title:
+
+Delete Email?
+
+Description:
+
+This email will be permanently removed from VaultMail.
+
+Buttons:
+
+Cancel
+Delete
+
+Behavior:
+
+Cancel:
+
+* close modal
+
+Delete:
+
+* remove email
+* update storage
+* close modal
+
+========================================
+MODAL STYLE
+===========
+
+Dark theme.
+
+Apple-quality styling.
+
+Requirements:
+
+* backdrop blur
+* fade animation
+* scale animation
+* rounded corners
+* subtle border
+* premium spacing
+
+Delete button:
+
+destructive style
+
+Cancel button:
+
+secondary style
+
+========================================
+ARCHITECTURE REQUIREMENT
+========================
+
+Use a clean architecture.
+
+Store:
+
+savedEmails
+currentActiveEmail
+
+inside chrome.storage.local
+
+Keep state synchronized across:
+
+* popup
+* content script
+* background service worker
+
+without requiring manual refresh.

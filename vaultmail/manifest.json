@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "VaultMail",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A beautiful email vault to save and manage your email addresses.",
   "action": {
     "default_popup": "popup.html",
@@ -16,5 +16,17 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "permissions": ["storage"]
+  "permissions": ["storage", "tabs"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://replit.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": ["https://replit.com/*"]
 }
