@@ -8,53 +8,84 @@
 </head>
 <body>
 
-  <!-- Top Navigation Bar -->
-  <nav class="navbar">
-    <div class="navbar-brand">
-      <div class="brand-logo">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="22" height="22" rx="6" fill="#0066FF"/>
-          <path d="M4 8.5L11 13L18 8.5" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          <rect x="4" y="6" width="14" height="10" rx="2" stroke="white" stroke-width="1.5"/>
+  <!-- ── Header 1: App Identity ── -->
+  <header class="app-header">
+    <div class="app-brand">
+      <div class="app-logo">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="20" height="20" rx="5.5" fill="#3B82F6"/>
+          <rect x="3.5" y="5.5" width="13" height="9" rx="1.75" stroke="white" stroke-width="1.4"/>
+          <path d="M3.5 7.5L10 11.5L16.5 7.5" stroke="white" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
       </div>
-      <span class="brand-name">VaultMail</span>
+      <span class="app-brand-name">VaultMail</span>
     </div>
-    <button class="btn-add" id="btnAdd" aria-label="Add emails">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M7 1V13M1 7H13" stroke="white" stroke-width="2" stroke-linecap="round"/>
+    <button class="btn-settings" aria-label="Settings">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.4"/>
+        <path d="M8 1.5V3M8 13V14.5M1.5 8H3M13 8H14.5M3.05 3.05L4.11 4.11M11.89 11.89L12.95 12.95M3.05 12.95L4.11 11.89M11.89 4.11L12.95 3.05" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
       </svg>
     </button>
-  </nav>
+  </header>
 
-  <!-- Main Content -->
+  <!-- ── Header 2: Workspace Action Bar ── -->
+  <div class="workspace-bar">
+    <div class="workspace-brand">
+      <div class="replit-logo">
+        <svg width="16" height="16" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 4h6a3 3 0 0 1 0 6H4V4z" fill="#F5A623"/>
+          <path d="M4 10h7a3 3 0 0 1 0 6H4v-6z" fill="#E6533C"/>
+          <path d="M11 16h5" stroke="#E6533C" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <span class="workspace-label">Replit</span>
+    </div>
+    <button class="btn-add" id="btnAdd" aria-label="Add emails">
+      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6.5 1.5V11.5M1.5 6.5H11.5" stroke="white" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ── Main Scroll Area ── -->
   <main class="content" id="content">
+
+    <!-- Stats Row -->
+    <div class="stats-row" id="statsRow" style="display:none">
+      <div class="stat-block">
+        <span class="stat-number" id="statCount">0</span>
+        <span class="stat-label">Vault</span>
+      </div>
+    </div>
 
     <!-- Empty State -->
     <div class="empty-state" id="emptyState">
       <div class="empty-icon">
-        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect x="6" y="10" width="36" height="28" rx="5" stroke="#C8C8D0" stroke-width="2"/>
-          <path d="M6 17L24 27L42 17" stroke="#C8C8D0" stroke-width="2" stroke-linecap="round"/>
+        <svg width="52" height="52" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="6" y="11" width="40" height="30" rx="6" stroke="rgba(255,255,255,0.12)" stroke-width="1.8"/>
+          <path d="M6 18L26 30L46 18" stroke="rgba(255,255,255,0.12)" stroke-width="1.8" stroke-linecap="round"/>
+          <rect x="14" y="23" width="10" height="1.5" rx="0.75" fill="rgba(255,255,255,0.08)"/>
+          <rect x="14" y="27" width="7" height="1.5" rx="0.75" fill="rgba(255,255,255,0.06)"/>
         </svg>
       </div>
-      <p class="empty-title">No emails saved yet</p>
-      <p class="empty-sub">Press + to add emails</p>
+      <p class="empty-title">No Emails Saved</p>
+      <p class="empty-desc">Store and organize your email collection.</p>
+      <button class="btn-empty-cta" id="btnEmptyCta">Add Emails</button>
     </div>
 
-    <!-- Email List -->
-    <div class="email-list" id="emailList"></div>
+    <!-- Email Grid -->
+    <div class="email-grid" id="emailGrid"></div>
 
   </main>
 
-  <!-- Modal Overlay -->
+  <!-- ── Add Modal ── -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal-card" id="modalCard" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitle">Add Emails</h2>
         <button class="btn-close" id="btnClose" aria-label="Close">
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1 1L11 11M11 1L1 11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
+            <path d="M1 1L10 10M10 1L1 10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
           </svg>
         </button>
       </div>
@@ -70,7 +101,7 @@
     </div>
   </div>
 
-  <!-- Toast notification -->
+  <!-- ── Toast ── -->
   <div class="toast" id="toast"></div>
 
   <script src="popup.js"></script>

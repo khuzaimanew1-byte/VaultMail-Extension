@@ -1,0 +1,284 @@
+VaultMail UI redesign.
+
+The current UI feels like a contacts list/profile directory because of:
+
+* Large avatar circles
+* Single-column stacked cards
+* Excessive card height
+* Too much empty space
+* Weak visual hierarchy
+* No dedicated action bar under the header
+
+Redesign the entire dashboard into a minimal email vault experience.
+
+========================================
+HEADER STRUCTURE
+================
+
+Create TWO separate top sections.
+
+Section 1 (App Header)
+
+Height:
+56px
+
+Left:
+VaultMail logo
+VaultMail text
+
+Right:
+Settings icon button
+
+Style:
+
+* Clean white surface
+* Subtle bottom border
+* Sticky top position
+* Compact spacing
+
+========================================
+SECTION 2 (ACTION BAR)
+======================
+
+Directly below VaultMail header create a dedicated action bar.
+
+Height:
+52px
+
+Left:
+Replit logo
+Text: Replit
+
+Right:
+Floating circular Add button
+
+Add button:
+
+* Blue accent
+* Perfect circle
+* Smooth hover animation
+* Scale effect on click
+* Floating appearance
+
+Action bar style:
+
+* Frosted glass effect
+* Slight blur
+* Sticky position
+* Separate from header
+* Premium spacing
+
+This bar should immediately communicate:
+"This is the active workspace."
+
+========================================
+EMAIL GRID
+==========
+
+Remove single-column list.
+
+Create:
+2-column responsive grid.
+
+Desktop popup:
+2 columns
+
+Small popup widths:
+Automatically collapse to 1 column
+
+Gap:
+12px
+
+Padding:
+16px
+
+========================================
+REMOVE AVATAR CIRCLES
+=====================
+
+Delete all profile-style initials.
+
+No circles.
+No avatars.
+No contact-list appearance.
+
+This is an email vault, not a people directory.
+
+========================================
+NEW CARD DESIGN
+===============
+
+Cards should be compact and information-focused.
+
+Card height:
+60px–72px
+
+Structure:
+
+Top:
+Small email icon
+
+Middle:
+Email address
+
+Bottom:
+Very small domain label
+
+Examples:
+
+Email:
+[hello@example.com](mailto:hello@example.com)
+
+Domain:
+gmail.com
+
+========================================
+CARD STYLE
+==========
+
+Use Apple Notes + Apple Passwords inspiration.
+
+Requirements:
+
+* Soft white cards
+* 16px radius
+* Thin border
+* Subtle depth
+* Extremely clean
+* No profile appearance
+* No bulky shadows
+
+Hover:
+
+* Slight lift
+* Slight scale
+* Smooth transition
+
+========================================
+CARD ACTIONS
+============
+
+Actions stay hidden by default.
+
+On hover:
+Reveal small icon buttons:
+
+Copy
+Delete
+
+Icons only.
+
+No visible buttons all the time.
+
+This keeps focus on emails.
+
+========================================
+VISUAL HIERARCHY
+================
+
+Priority order:
+
+1. Email address
+2. Domain
+3. Actions
+
+Nothing else.
+
+========================================
+EMAIL TYPOGRAPHY
+================
+
+Email address:
+
+* Medium weight
+* Compact
+* Single line
+* Ellipsis if too long
+
+Domain:
+
+* Small
+* Muted gray
+* Secondary information
+
+========================================
+DASHBOARD SUMMARY
+=================
+
+Above grid create compact statistics row.
+
+Example:
+
+Saved 33
+
+Display as:
+
+[33]
+Saved Emails
+
+Minimal pill design.
+
+No giant counters.
+
+========================================
+EMPTY STATE
+===========
+
+When no emails exist:
+
+Large email vault illustration
+
+Title:
+No Emails Saved
+
+Description:
+Store and organize your email collection.
+
+Primary CTA:
+Add Emails
+
+========================================
+ANIMATIONS
+==========
+
+Cards:
+
+* Fade in
+* Slight upward movement
+
+Modal:
+
+* Spring animation
+
+Buttons:
+
+* Scale animation
+
+Grid:
+
+* Staggered card appearance
+
+========================================
+DESIGN GOAL
+===========
+
+Do NOT make this look like:
+
+* Contacts app
+* CRM
+* Address book
+* Team directory
+
+Make it feel like:
+
+* Apple Passwords
+* Apple Notes
+* Arc Browser Spaces
+* Modern productivity software
+
+The interface should immediately communicate:
+"Email Vault / Email Collection Manager"
+
+instead of
+
+"People Directory / Contact List".

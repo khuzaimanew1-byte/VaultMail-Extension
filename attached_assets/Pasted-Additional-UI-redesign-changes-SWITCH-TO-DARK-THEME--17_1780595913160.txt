@@ -1,0 +1,229 @@
+Additional UI redesign changes.
+
+========================================
+SWITCH TO DARK THEME
+====================
+
+Remove the current light theme completely.
+
+Create a premium dark interface inspired by:
+
+* Apple Vision Pro UI
+* Arc Browser
+* Raycast
+* Linear
+* Notion Dark
+* macOS Dark Mode
+
+The extension should feel modern, focused, and premium.
+
+Background:
+#0A0A0A
+
+Surface:
+#111111
+
+Cards:
+#171717
+
+Borders:
+rgba(255,255,255,0.06)
+
+Text:
+#FFFFFF
+
+Secondary Text:
+rgba(255,255,255,0.55)
+
+Accent:
+#3B82F6
+
+========================================
+REMOVE "SAVED" LABEL
+====================
+
+Do NOT show:
+
+Saved
+Saved Emails
+Total Emails
+
+Remove these completely.
+
+The number itself should communicate the count.
+
+Bad:
+
+Saved 33
+
+Good:
+
+[33]
+
+or
+
+33
+
+or
+
+33 Emails
+
+Minimal only.
+
+========================================
+TOP STAT AREA
+=============
+
+Replace current stats section with:
+
+Large number
+
+Example:
+
+33
+
+Under it:
+
+small muted text
+
+Vault
+
+The number should be the visual focus.
+
+========================================
+BETTER HEADER ARCHITECTURE
+==========================
+
+Header 1:
+VaultMail
+
+Header 2:
+Workspace Bar
+
+Left:
+Replit logo
+Replit
+
+Right:
+Add Button
+
+Dark glass surface.
+
+========================================
+EMAIL GRID
+==========
+
+Use true masonry-like compact grid.
+
+2 columns.
+
+No giant vertical gaps.
+
+Cards should feel dense and efficient.
+
+========================================
+NEW EMAIL CARD STYLE
+====================
+
+Remove all profile/contact identity patterns.
+
+No initials.
+No avatars.
+No circles.
+No profile indicators.
+
+Instead:
+
+Small email icon at top-left.
+
+Email address below.
+
+Domain below email.
+
+Compact layout.
+
+========================================
+CARD LOOK
+=========
+
+Apple Passwords inspired.
+
+Dark card surface.
+
+Very subtle border.
+
+Soft glow on hover.
+
+No heavy shadows.
+
+Hover:
+
+* translateY(-2px)
+* slight scale
+* border highlight
+
+========================================
+ADD BUTTON
+==========
+
+The Add button should become the primary visual action.
+
+Style:
+
+* Circular
+* Floating appearance
+* Blue glow
+* Smooth hover
+* Premium animation
+
+Should feel similar to a floating action button from a premium desktop app.
+
+========================================
+SCROLLBAR
+=========
+
+Replace default scrollbar.
+
+Create custom dark scrollbar.
+
+Very thin.
+
+Almost invisible.
+
+Only appears clearly on hover.
+
+========================================
+EMAIL FOCUS
+===========
+
+The email itself should be the hero element.
+
+Nothing should visually compete with the email text.
+
+Hierarchy:
+
+1. Email
+2. Add Button
+3. Count
+4. Domain
+5. Actions
+
+========================================
+OVERALL FEELING
+===============
+
+The extension should feel like:
+
+A secure email vault.
+
+Not:
+
+* Contact Manager
+* Address Book
+* CRM
+
+The first impression should be:
+
+"Minimal dark productivity tool"
+
+with strong focus, clarity, density, and premium software aesthetics.
