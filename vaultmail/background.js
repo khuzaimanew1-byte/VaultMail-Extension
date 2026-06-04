@@ -2,58 +2,71 @@
 
 // ============================================================
 // BACKGROUND SERVICE WORKER
-// Monitors Replit tabs even when the user is not focused on them.
-// Forwards tab URL changes to storage so the popup can react.
+// Tracks Replit tab presence and forwards email submissions.
 // ============================================================
 
 const REPLIT_ORIGIN = 'https://replit.com';
-const HOME_RE = /^https:\/\/replit\.com\/~(.+)/;
+const HOME_RE       = /^https:\/\/replit\.com\/~.+/;
 
-// Track last known URL per tab so we only fire on actual changes
-const tabUrls = {};
+const tabUrls = new Map();  // tabId → url
+
+// ── Helpers ──────────────────────────────────────────────────
+
+function isReplitUrl(url) {
+  return url && url.startsWith(REPLIT_ORIGIN);
+}
+
+function broadcastToPopup(message) {
+  chrome.runtime.sendMessage(message).catch(() => {});
+}
+
+function updateReplitActive() {
+  const active = [...tabUrls.values()].some(u => isReplitUrl(u));
+  chrome.storage.local.set({ replitActive: active }, () => {
+    broadcastToPopup({ type: 'REPLIT_STATUS_CHANGED', active });
+  });
+}
+
+// ── Tab lifecycle ─────────────────────────────────────────────
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  if (!tab.url || !tab.url.startsWith(REPLIT_ORIGIN)) return;
-  if (changeInfo.status !== 'complete' && !changeInfo.url) return;
-
   const url = changeInfo.url || tab.url;
+  if (!url) return;
 
-  // Skip if URL hasn't actually changed
-  if (tabUrls[tabId] === url) return;
-  tabUrls[tabId] = url;
+  const prev = tabUrls.get(tabId);
+  tabUrls.set(tabId, url);
 
-  // If the page redirected to /~ (home/dashboard), preserve currentActiveEmail
-  if (HOME_RE.test(url)) {
-    // Just ensure we don't accidentally clear it — storage write is controlled
-    // by content script; nothing to do here.
-    broadcastToPopup({ type: 'URL_CHANGED', url, isHome: true });
-  } else {
-    broadcastToPopup({ type: 'URL_CHANGED', url, isHome: false });
+  if (prev === url) return;
+
+  updateReplitActive();
+
+  if (isReplitUrl(url) && (changeInfo.status === 'complete' || changeInfo.url)) {
+    broadcastToPopup({ type: 'URL_CHANGED', url, isHome: HOME_RE.test(url) });
   }
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  delete tabUrls[tabId];
+  tabUrls.delete(tabId);
+  updateReplitActive();
 });
 
-// Send a message to the popup if it's open.
-// This uses chrome.runtime.sendMessage which the popup listens to.
-function broadcastToPopup(message) {
-  chrome.runtime.sendMessage(message).catch(() => {
-    // Popup not open — silently ignore
-  });
-}
+// Seed initial state on service worker start
+chrome.tabs.query({}, (tabs) => {
+  for (const t of tabs) if (t.url) tabUrls.set(t.id, t.url);
+  updateReplitActive();
+});
 
-// Listen for messages from content scripts
+// ── Message handler ───────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'EMAIL_SUBMITTED') {
-    const email = message.email;
+    const { email } = message;
     if (email) {
       chrome.storage.local.set({ currentActiveEmail: email }, () => {
         broadcastToPopup({ type: 'ACTIVE_EMAIL_UPDATED', email });
         sendResponse({ ok: true });
       });
-      return true; // keep channel open for async sendResponse
+      return true;
     }
   }
 });
