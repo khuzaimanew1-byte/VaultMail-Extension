@@ -7,6 +7,7 @@
 let emails             = [];
 let currentActiveEmail = null;
 let replitActive       = false;
+let formDetected       = false;
 let activeTab          = 'emails';
 let pendingDelete      = null;
 
@@ -41,9 +42,9 @@ const panelPreview     = document.getElementById('panelPreview');
 const previewEmail     = document.getElementById('previewEmail');
 const deleteTarget     = document.getElementById('deleteTarget');
 
-// Preview state cards
 const stateIdle        = document.getElementById('stateIdle');
 const stateActivated   = document.getElementById('stateActivated');
+const stateProcessing  = document.getElementById('stateProcessing');
 const stateActive      = document.getElementById('stateActive');
 
 // ============================================================
@@ -52,11 +53,12 @@ const stateActive      = document.getElementById('stateActive');
 
 function loadState(callback) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'currentActiveEmail', 'replitActive'],
-    (result) => {
-      emails             = result.vaultmail_emails   || [];
-      currentActiveEmail = result.currentActiveEmail || null;
-      replitActive       = result.replitActive       || false;
+    ['vaultmail_emails', 'currentActiveEmail', 'replitActive', 'formDetected'],
+    (r) => {
+      emails             = r.vaultmail_emails   || [];
+      currentActiveEmail = r.currentActiveEmail || null;
+      replitActive       = r.replitActive       || false;
+      formDetected       = r.formDetected       || false;
       callback();
     }
   );
@@ -74,14 +76,12 @@ function parseEmails(raw) {
   return [...new Set(
     raw.split(/[\n,]+/)
       .map(e => e.trim().toLowerCase())
-      .filter(e => e.length > 0 && isValidEmail(e))
+      .filter(e => e.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
   )];
 }
 
-function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
-
 // ============================================================
-// SEGMENTED CONTROL — pill indicator
+// SEGMENTED CONTROL — sliding pill
 // ============================================================
 
 function positionIndicator(btn) {
@@ -119,41 +119,43 @@ function switchTab(tab, instant = false) {
 }
 
 // ============================================================
-// PREVIEW PANEL — 3 status states
+// PREVIEW STATE
+//
+//  active     → currentActiveEmail set AND formDetected is false
+//  processing → formDetected true (form visible or email submitted)
+//  activated  → replitActive true, no form, no email
+//  idle       → nothing open
 // ============================================================
 
-/**
- * Determine which state to show:
- *   active    → currentActiveEmail set
- *   activated → replitActive is true, no email yet
- *   idle      → no Replit tab
- */
 function currentPreviewState() {
-  if (currentActiveEmail) return 'active';
-  if (replitActive)       return 'activated';
+  if (currentActiveEmail && !formDetected) return 'active';
+  if (formDetected)                         return 'processing';
+  if (replitActive)                         return 'activated';
   return 'idle';
 }
 
 function renderPreview() {
   const state = currentPreviewState();
 
-  stateIdle.style.display      = state === 'idle'      ? 'flex' : 'none';
-  stateActivated.style.display = state === 'activated' ? 'flex' : 'none';
-  stateActive.style.display    = state === 'active'    ? 'flex' : 'none';
+  stateIdle.style.display       = state === 'idle'       ? 'flex' : 'none';
+  stateActivated.style.display  = state === 'activated'  ? 'flex' : 'none';
+  stateProcessing.style.display = state === 'processing' ? 'flex' : 'none';
+  stateActive.style.display     = state === 'active'     ? 'flex' : 'none';
 
   if (state === 'active') {
     previewEmail.textContent = currentActiveEmail;
   }
 
-  // Update dot in the tab button
+  // Update dot in the tab button label
   segDot.className = 'seg-dot';
-  if (state === 'activated') segDot.classList.add('dot-activated');
-  else if (state === 'active') segDot.classList.add('dot-active');
-  else segDot.classList.add('dot-idle');
+  if      (state === 'processing') segDot.classList.add('dot-processing');
+  else if (state === 'activated')  segDot.classList.add('dot-activated');
+  else if (state === 'active')     segDot.classList.add('dot-active');
+  else                             segDot.classList.add('dot-idle');
 }
 
 // ============================================================
-// RENDERING — EMAIL GRID
+// EMAIL GRID
 // ============================================================
 
 function renderGrid() {
@@ -242,7 +244,7 @@ function openAddModal() {
 function closeAddModal() { modalOverlay.classList.remove('open'); }
 
 function handleSave() {
-  const raw    = emailInput.value.trim();
+  const raw = emailInput.value.trim();
   if (!raw) return;
   const parsed = parseEmails(raw);
   if (!parsed.length) { showToast('No valid emails found'); return; }
@@ -308,25 +310,74 @@ function showToast(msg) {
 }
 
 // ============================================================
-// RUNTIME MESSAGES
+// RUNTIME MESSAGES — live updates while popup is open
 // ============================================================
 
 chrome.runtime.onMessage.addListener((message) => {
-  if (message.type === 'ACTIVE_EMAIL_UPDATED' && message.email) {
-    currentActiveEmail = message.email;
-    renderPreview();
-  }
-  if (message.type === 'REPLIT_STATUS_CHANGED') {
-    replitActive = message.active;
-    renderPreview();
-  }
-  if (message.type === 'URL_CHANGED') {
-    chrome.storage.local.get(['currentActiveEmail', 'replitActive'], (r) => {
-      currentActiveEmail = r.currentActiveEmail || null;
-      replitActive       = r.replitActive       || false;
+  switch (message.type) {
+
+    case 'FORM_DETECTED':
+      formDetected = true;
       renderPreview();
-    });
+      break;
+
+    case 'EMAIL_SUBMITTED':
+      formDetected       = true;
+      currentActiveEmail = message.email;
+      renderPreview();
+      break;
+
+    case 'LOGIN_SUCCESS':
+    case 'ACTIVE_EMAIL_UPDATED':
+      formDetected       = false;
+      currentActiveEmail = message.email || currentActiveEmail;
+      renderPreview();
+      break;
+
+    case 'REPLIT_STATUS_CHANGED':
+      replitActive = message.active;
+      if (!message.active) {
+        formDetected       = false;
+        currentActiveEmail = null;
+        chrome.storage.local.set({ formDetected: false, currentActiveEmail: null });
+      }
+      renderPreview();
+      break;
+
+    case 'URL_CHANGED':
+      // Re-read storage for any state that may have changed
+      chrome.storage.local.get(
+        ['currentActiveEmail', 'replitActive', 'formDetected'],
+        (r) => {
+          currentActiveEmail = r.currentActiveEmail || null;
+          replitActive       = r.replitActive       || false;
+          formDetected       = r.formDetected       || false;
+          renderPreview();
+        }
+      );
+      break;
   }
+});
+
+// Also listen for storage changes as a fallback (catches updates
+// from the content script when the popup was already open)
+chrome.storage.onChanged.addListener((changes) => {
+  let needsUpdate = false;
+
+  if ('currentActiveEmail' in changes) {
+    currentActiveEmail = changes.currentActiveEmail.newValue || null;
+    needsUpdate = true;
+  }
+  if ('formDetected' in changes) {
+    formDetected = changes.formDetected.newValue || false;
+    needsUpdate = true;
+  }
+  if ('replitActive' in changes) {
+    replitActive = changes.replitActive.newValue || false;
+    needsUpdate = true;
+  }
+
+  if (needsUpdate) renderPreview();
 });
 
 // ============================================================

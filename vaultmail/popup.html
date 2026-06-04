@@ -8,7 +8,7 @@
 </head>
 <body>
 
-  <!-- ── Header 1: App Identity  (48px) ── -->
+  <!-- ── Header 1: App Identity (48px) ── -->
   <header class="app-header">
     <div class="app-brand">
       <div class="app-logo">
@@ -28,7 +28,7 @@
     </button>
   </header>
 
-  <!-- ── Header 2: Workspace Bar  (42px) ── -->
+  <!-- ── Header 2: Workspace Bar (42px) ── -->
   <div class="workspace-bar">
     <div class="workspace-brand">
       <svg class="replit-mark" width="13" height="15" viewBox="0 0 14 16" fill="none">
@@ -45,7 +45,7 @@
     </button>
   </div>
 
-  <!-- ── Tab Bar: always-visible segmented control  (34px) ── -->
+  <!-- ── Tab Bar (34px) ── -->
   <div class="tab-bar">
     <div class="segmented" id="segmented">
       <div class="seg-indicator" id="segIndicator"></div>
@@ -82,7 +82,7 @@
     <!-- ═══ PREVIEW PANEL ═══ -->
     <div id="panelPreview" style="display:none">
 
-      <!-- State: idle (no Replit tab open) -->
+      <!-- State 1: idle — no Replit tab -->
       <div class="status-card" id="stateIdle" style="display:none">
         <div class="status-dot dot-idle"></div>
         <div class="status-body">
@@ -91,7 +91,7 @@
         </div>
       </div>
 
-      <!-- State: activated (Replit tab open, no email yet) -->
+      <!-- State 2: activated — Replit open, no form yet -->
       <div class="status-card" id="stateActivated" style="display:none">
         <div class="status-dot dot-activated"></div>
         <div class="status-body">
@@ -100,7 +100,17 @@
         </div>
       </div>
 
-      <!-- State: active email -->
+      <!-- State 3: processing — login form detected / email submitted -->
+      <div class="status-card status-card--processing" id="stateProcessing" style="display:none">
+        <div class="status-dot dot-processing"></div>
+        <div class="status-body">
+          <p class="status-title">Processing Login</p>
+          <p class="status-sub">Email form detected — waiting for sign-in</p>
+        </div>
+        <div class="spinner"></div>
+      </div>
+
+      <!-- State 4: active — login complete, email captured -->
       <div class="status-card status-card--active" id="stateActive" style="display:none">
         <div class="status-dot dot-active"></div>
         <div class="status-body">
@@ -146,7 +156,7 @@
       <p class="delete-desc">This email will be permanently removed from VaultMail.</p>
       <p class="delete-target" id="deleteTarget"></p>
       <div class="delete-actions">
-        <button class="btn-cancel" id="btnDeleteCancel">Cancel</button>
+        <button class="btn-cancel"  id="btnDeleteCancel">Cancel</button>
         <button class="btn-danger"  id="btnDeleteConfirm">Delete</button>
       </div>
     </div>

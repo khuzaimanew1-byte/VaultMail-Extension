@@ -2,15 +2,12 @@
 
 // ============================================================
 // BACKGROUND SERVICE WORKER
-// Tracks Replit tab presence and forwards email submissions.
 // ============================================================
 
 const REPLIT_ORIGIN = 'https://replit.com';
-const HOME_RE       = /^https:\/\/replit\.com\/~.+/;
+const HOME_RE       = /^https:\/\/replit\.com\/(~|home|dashboard)/;
 
-const tabUrls = new Map();  // tabId → url
-
-// ── Helpers ──────────────────────────────────────────────────
+const tabUrls = new Map();
 
 function isReplitUrl(url) {
   return url && url.startsWith(REPLIT_ORIGIN);
@@ -35,7 +32,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 
   const prev = tabUrls.get(tabId);
   tabUrls.set(tabId, url);
-
   if (prev === url) return;
 
   updateReplitActive();
@@ -50,7 +46,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   updateReplitActive();
 });
 
-// Seed initial state on service worker start
+// Seed on startup
 chrome.tabs.query({}, (tabs) => {
   for (const t of tabs) if (t.url) tabUrls.set(t.id, t.url);
   updateReplitActive();
@@ -59,14 +55,41 @@ chrome.tabs.query({}, (tabs) => {
 // ── Message handler ───────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+  // Login form became visible on Replit
+  if (message.type === 'FORM_DETECTED') {
+    chrome.storage.local.set({ formDetected: true }, () => {
+      broadcastToPopup({ type: 'FORM_DETECTED' });
+    });
+    return;
+  }
+
+  // User submitted the email (clicked Continue / pressed Enter)
   if (message.type === 'EMAIL_SUBMITTED') {
     const { email } = message;
     if (email) {
-      chrome.storage.local.set({ currentActiveEmail: email }, () => {
-        broadcastToPopup({ type: 'ACTIVE_EMAIL_UPDATED', email });
+      chrome.storage.local.set({ currentActiveEmail: email, formDetected: true }, () => {
+        broadcastToPopup({ type: 'EMAIL_SUBMITTED', email });
         sendResponse({ ok: true });
       });
       return true;
     }
+  }
+
+  // Page redirected to /~ — login completed
+  if (message.type === 'LOGIN_SUCCESS') {
+    const { email } = message;
+    const updates = { formDetected: false };
+    if (email) updates.currentActiveEmail = email;
+
+    chrome.storage.local.set(updates, () => {
+      chrome.storage.local.get(['currentActiveEmail'], (r) => {
+        const finalEmail = r.currentActiveEmail;
+        if (finalEmail) {
+          broadcastToPopup({ type: 'ACTIVE_EMAIL_UPDATED', email: finalEmail });
+        }
+      });
+    });
+    return;
   }
 });
