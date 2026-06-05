@@ -2,7 +2,7 @@
 
 let emails             = [];
 let currentActiveEmail = null;
-let captureStatus      = 'activated'; // 'activated' | 'processing' | 'previewing'
+let captureStatus      = 'activated';
 let activeTab          = 'emails';
 let pendingDelete      = null;
 
@@ -38,16 +38,32 @@ const stateActivated   = document.getElementById('stateActivated');
 const stateProcessing  = document.getElementById('stateProcessing');
 const stateActive      = document.getElementById('stateActive');
 
+// ── Debug panel elements ───────────────────────────────────────
+
+const dbgTagName        = document.getElementById('dbgTagName');
+const dbgDetectedTarget = document.getElementById('dbgDetectedTarget');
+const dbgEmailCandidate = document.getElementById('dbgEmailCandidate');
+const dbgFormFound      = document.getElementById('dbgFormFound');
+const dbgSubmitFound    = document.getElementById('dbgSubmitFound');
+const dbgCurrentStatus  = document.getElementById('dbgCurrentStatus');
+const dbgActiveSelector = document.getElementById('dbgActiveSelector');
+
+const archInteraction   = document.getElementById('archInteraction');
+const archDomScan       = document.getElementById('archDomScan');
+const archMutObs        = document.getElementById('archMutObs');
+const archInterval      = document.getElementById('archInterval');
+const archContext       = document.getElementById('archContext');
+
 // ── Storage ───────────────────────────────────────────────────
 
 function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'currentActiveEmail', 'captureStatus'],
+    ['vaultmail_emails', 'currentActiveEmail', 'captureStatus', 'vmDebug', 'vmArch'],
     (r) => {
       emails             = r.vaultmail_emails   || [];
       currentActiveEmail = r.currentActiveEmail || null;
       captureStatus      = r.captureStatus      || 'activated';
-      cb();
+      cb(r.vmDebug || null, r.vmArch || null);
     }
   );
 }
@@ -106,9 +122,9 @@ function renderPreview() {
   stateActive.style.display     = isPreviewing ? 'flex' : 'none';
 
   if (isPreviewing && currentActiveEmail) {
-    previewEmail.textContent  = currentActiveEmail;
-    previewEmail.style.display = 'block';
-    previewSub.style.display   = 'none';
+    previewEmail.textContent     = currentActiveEmail;
+    previewEmail.style.display   = 'block';
+    previewSub.style.display     = 'none';
     btnCopyPreview.style.display = 'flex';
   } else {
     previewEmail.style.display   = 'none';
@@ -120,6 +136,67 @@ function renderPreview() {
   if      (isProcessing) segDot.classList.add('dot-processing');
   else if (isPreviewing) segDot.classList.add('dot-active');
   else                   segDot.classList.add('dot-activated');
+}
+
+// ── Testing panel ─────────────────────────────────────────────
+
+function yn(val) {
+  if (val === null || val === undefined || val === '—') return '—';
+  return val ? 'YES' : 'NO';
+}
+
+function activeInactive(val) {
+  return val ? 'ACTIVE' : 'INACTIVE';
+}
+
+function yesNo(val) {
+  return val ? 'YES' : 'NO';
+}
+
+function applyClass(el, val) {
+  el.className = 'test-val';
+  if (val === 'YES' || val === 'ACTIVE' || val === 'NO' && el === archDomScan || val === 'NO' && el === archMutObs || val === 'NO' && el === archInterval) {
+    el.classList.add(val === 'YES' || val === 'ACTIVE' ? 'val-yes' : 'val-no');
+  } else if (val === 'NO') {
+    el.classList.add('val-no');
+  } else if (val === 'INACTIVE') {
+    el.classList.add('val-inactive');
+  }
+  if (el === dbgActiveSelector) el.classList.add('test-val--mono');
+}
+
+function renderDebug(d) {
+  if (!d) return;
+
+  const fields = {
+    [dbgTagName]:        d.tagName        || '—',
+    [dbgDetectedTarget]: yn(d.detectedTarget),
+    [dbgEmailCandidate]: yn(d.emailCandidate),
+    [dbgFormFound]:      yn(d.formFound),
+    [dbgSubmitFound]:    yn(d.submitFound),
+    [dbgCurrentStatus]:  d.currentStatus  || '—',
+    [dbgActiveSelector]: d.activeSelector || '—',
+  };
+
+  for (const [el, val] of Object.entries(fields)) {
+    el.textContent = val;
+    applyClass(el, val);
+  }
+
+  archContext.textContent = d.contextLocked ? 'ACTIVE' : 'INACTIVE';
+  applyClass(archContext, d.contextLocked ? 'ACTIVE' : 'INACTIVE');
+}
+
+function renderArch(a) {
+  if (!a) return;
+  archInteraction.textContent = activeInactive(a.interactionListener);
+  applyClass(archInteraction, a.interactionListener ? 'ACTIVE' : 'INACTIVE');
+  archDomScan.textContent = yesNo(a.continuousDomScan);
+  applyClass(archDomScan, a.continuousDomScan ? 'YES' : 'NO');
+  archMutObs.textContent = yesNo(a.mutationObserver);
+  applyClass(archMutObs, a.mutationObserver ? 'YES' : 'NO');
+  archInterval.textContent = yesNo(a.intervalScanner);
+  applyClass(archInterval, a.intervalScanner ? 'YES' : 'NO');
 }
 
 // ── Email grid ────────────────────────────────────────────────
@@ -218,20 +295,25 @@ function showToast(msg) {
 chrome.runtime.onMessage.addListener((message) => {
   if (message.type === 'STATUS_CHANGED') {
     captureStatus = message.status || 'activated';
-    if (captureStatus !== 'previewing') currentActiveEmail = null;
+    if (captureStatus === 'activated') currentActiveEmail = null;
     renderPreview();
   }
   if (message.type === 'ACTIVE_EMAIL_UPDATED') {
     currentActiveEmail = message.email || null;
     renderPreview();
   }
+  if (message.type === 'DEBUG_UPDATED') {
+    renderDebug(message.debug);
+  }
 });
 
 chrome.storage.onChanged.addListener((changes) => {
-  let changed = false;
-  if ('captureStatus'      in changes) { captureStatus      = changes.captureStatus.newValue      || 'activated'; changed = true; }
-  if ('currentActiveEmail' in changes) { currentActiveEmail = changes.currentActiveEmail.newValue || null;        changed = true; }
-  if (changed) renderPreview();
+  let previewChanged = false;
+  if ('captureStatus'      in changes) { captureStatus      = changes.captureStatus.newValue      || 'activated'; previewChanged = true; }
+  if ('currentActiveEmail' in changes) { currentActiveEmail = changes.currentActiveEmail.newValue || null;        previewChanged = true; }
+  if (previewChanged) renderPreview();
+  if ('vmDebug' in changes) renderDebug(changes.vmDebug.newValue);
+  if ('vmArch'  in changes) renderArch(changes.vmArch.newValue);
 });
 
 // ── Events ────────────────────────────────────────────────────
@@ -254,8 +336,10 @@ document.addEventListener('keydown', e => {
 
 // ── Init ──────────────────────────────────────────────────────
 
-loadState(() => {
+loadState((debug, arch) => {
   switchTab('emails', true);
   renderGrid();
   renderPreview();
+  if (debug) renderDebug(debug);
+  if (arch)  renderArch(arch);
 });

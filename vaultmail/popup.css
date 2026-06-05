@@ -23,7 +23,7 @@
   --h-app:     48px;
   --h-ws:      42px;
   --h-tabs:    34px;
-  --h-popup:   510px;
+  --h-popup:   560px;
   --h-content: calc(var(--h-popup) - var(--h-app) - var(--h-ws) - var(--h-tabs));
 
   --r-sm:   8px;  --r-md: 11px;  --r-lg: 14px;
@@ -228,6 +228,49 @@ body {
 }
 .btn-copy-preview:hover { background: rgba(255,255,255,0.1); color: var(--text); }
 .btn-copy-preview:active { transform: scale(0.88); }
+
+/* ── Testing Panel ── */
+.test-panel {
+  margin-top: 12px;
+  border: 1px solid rgba(245,158,11,0.18);
+  border-radius: var(--r-lg);
+  background: rgba(245,158,11,0.03);
+  padding: 11px 12px 13px;
+  animation: fadeUp 0.28s var(--ease-out) forwards;
+}
+.test-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.test-panel-label { font-size: 11px; font-weight: 620; letter-spacing: 0.4px; color: rgba(255,255,255,0.55); }
+.test-panel-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.6px;
+  padding: 2px 6px; border-radius: var(--r-full);
+  background: rgba(245,158,11,0.18); color: var(--amber); border: 1px solid rgba(245,158,11,0.3);
+}
+.test-section-title {
+  font-size: 9.5px; font-weight: 650; letter-spacing: 0.6px; text-transform: uppercase;
+  color: var(--text-ter); margin-bottom: 6px;
+}
+.test-grid { display: flex; flex-direction: column; gap: 3px; }
+.test-row {
+  display: flex; align-items: center; justify-content: space-between;
+  min-height: 18px;
+}
+.test-key {
+  font-size: 10.5px; color: var(--text-ter); font-weight: 460; flex-shrink: 0;
+}
+.test-val {
+  font-size: 10.5px; font-weight: 560; color: var(--text-sec);
+  text-align: right; word-break: break-all; max-width: 55%;
+}
+.test-val--mono {
+  font-family: "SF Mono", ui-monospace, monospace;
+  font-size: 9.5px; color: var(--text-ter);
+}
+.test-val.val-yes    { color: var(--green); }
+.test-val.val-no     { color: var(--danger); }
+.test-val.val-inactive { color: var(--text-ter); }
 
 /* ── Modals ── */
 .modal-overlay {

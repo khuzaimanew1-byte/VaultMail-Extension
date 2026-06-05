@@ -112,6 +112,70 @@
         </button>
       </div>
 
+      <!-- TESTING PANEL (temporary) -->
+      <div class="test-panel" id="testPanel">
+        <div class="test-panel-header">
+          <span class="test-panel-label">Testing Panel</span>
+          <span class="test-panel-badge">DEBUG</span>
+        </div>
+
+        <div class="test-section-title">Last Interaction</div>
+        <div class="test-grid">
+          <div class="test-row">
+            <span class="test-key">Clicked Element</span>
+            <span class="test-val" id="dbgTagName">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Detected Target</span>
+            <span class="test-val" id="dbgDetectedTarget">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Email Candidate</span>
+            <span class="test-val" id="dbgEmailCandidate">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Form Found</span>
+            <span class="test-val" id="dbgFormFound">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Submit Button Found</span>
+            <span class="test-val" id="dbgSubmitFound">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Current Status</span>
+            <span class="test-val" id="dbgCurrentStatus">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Active Selector</span>
+            <span class="test-val test-val--mono" id="dbgActiveSelector">—</span>
+          </div>
+        </div>
+
+        <div class="test-section-title" style="margin-top:10px">Architecture</div>
+        <div class="test-grid">
+          <div class="test-row">
+            <span class="test-key">Interaction Listener</span>
+            <span class="test-val" id="archInteraction">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Continuous DOM Scan</span>
+            <span class="test-val" id="archDomScan">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">MutationObserver</span>
+            <span class="test-val" id="archMutObs">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Interval Scanner</span>
+            <span class="test-val" id="archInterval">—</span>
+          </div>
+          <div class="test-row">
+            <span class="test-key">Context Locking</span>
+            <span class="test-val" id="archContext">—</span>
+          </div>
+        </div>
+      </div>
+
     </div>
 
   </main>
