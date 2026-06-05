@@ -102,12 +102,17 @@ function findEmailInput() {
 }
 
 function findSubmitBtn(emailInput) {
+  // Include react-aria buttons — Replit uses these as submit buttons
   const BTN_SELS = [
     'button[type="submit"]',
     'input[type="submit"]',
     'button[aria-label*="continue" i]',
     'button[aria-label*="next" i]',
+    'button[aria-label*="sign" i]',
+    '[id^="react-aria"]',
+    'button',
   ];
+
   // Search inside same form first
   const form = emailInput?.closest('form');
   if (form) {
@@ -115,18 +120,26 @@ function findSubmitBtn(emailInput) {
       const el = form.querySelector(sel);
       if (el) return el;
     }
-    const anyBtn = form.querySelector('button');
-    if (anyBtn) return anyBtn;
   }
-  // Walk up container tree
+
+  // Walk up container tree — increased depth to 12 for deeply nested React UIs
   let node = emailInput?.parentElement;
-  for (let d = 0; d < 6 && node; d++) {
+  for (let d = 0; d < 12 && node; d++) {
     for (const sel of BTN_SELS) {
-      const el = node.querySelector(sel);
-      if (el) return el;
+      try {
+        const el = node.querySelector(sel);
+        if (el) return el;
+      } catch (_) {}
     }
     node = node.parentElement;
   }
+
+  // Last resort: find first visible button anywhere on the page
+  try {
+    const allBtns = [...document.querySelectorAll('button, [role="button"]')];
+    return allBtns.find(b => b.offsetParent !== null) || null;
+  } catch (_) {}
+
   return null;
 }
 
@@ -139,18 +152,24 @@ function saveEmail(email) {
 
 function tryAttachCapture() {
   if (captureAttached) return;
+
   const emailInput = findEmailInput();
   if (!emailInput) return;
 
   const submitBtn = findSubmitBtn(emailInput);
+
+  // Only mark as attached when BOTH are found so we don't block future retries
+  if (!submitBtn) return;
+
   captureAttached = true;
 
-  const grab = () => saveEmail(emailInput.value.trim().toLowerCase());
+  const grab = () => {
+    const val = emailInput.value.trim().toLowerCase();
+    if (val) saveEmail(val);
+  };
 
-  if (submitBtn) {
-    submitBtn.addEventListener('mousedown', grab, { capture: true });
-    submitBtn.addEventListener('click',     grab, { capture: true });
-  }
+  submitBtn.addEventListener('mousedown', grab, { capture: true });
+  submitBtn.addEventListener('click',     grab, { capture: true });
 
   emailInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') grab();
@@ -194,3 +213,4 @@ tryAttachCapture();
 // Re-scan after React renders
 setTimeout(() => { scanSelectors(); tryAttachCapture(); }, 800);
 setTimeout(() => { scanSelectors(); tryAttachCapture(); }, 2000);
+setTimeout(() => { scanSelectors(); tryAttachCapture(); }, 4000);
