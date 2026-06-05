@@ -1,0 +1,201 @@
+Completely delete the current Preview tab and rebuild it from scratch.
+
+Remove all existing Preview tab UI, components, state management, rendering logic, storage connections, event handlers, and legacy Preview-related code.
+
+The new Preview tab must be built from a clean foundation.
+
+---
+
+## PURPOSE
+
+The Preview tab should show the currently captured account and the account that will be captured next.
+
+The UI should be simple, clear, and user-focused.
+
+---
+
+Only 3 statuses exist.
+
+Status 1:
+
+Extension Activated
+
+Description:
+Waiting for email interaction
+
+Trigger:
+
+* Extension startup
+* Page refresh
+* No active email context
+
+---
+
+Status 2:
+
+Processing
+
+Description:
+Email detected. Preparing capture.
+
+Trigger:
+
+* User interacts with a valid email field
+* Active email context changes
+
+When Processing starts:
+
+1. Detect the email field.
+2. Resolve the form.
+3. Resolve the submit button inside the same form.
+4. Lock the context.
+
+The status MUST remain Processing after context locking.
+
+Do not automatically switch to another status after context lock.
+
+---
+
+Status 3:
+
+Previewing Account
+
+Description:
+Account captured successfully.
+
+Trigger:
+
+* User clicks the locked submit button
+* Email capture succeeds
+
+Previewing Account means the email has already been captured.
+
+---
+
+## STATUS FLOW
+
+Extension Activated
+→ Processing
+
+Processing
+→ Previewing Account
+
+Previewing Account
+→ Processing
+
+Extension Activated
+→ Processing
+→ Previewing Account
+→ Processing
+→ Previewing Account
+
+If a captured account is already being previewed:
+
+The status must remain Previewing Account until the user interacts with a different valid email field.
+
+Only then:
+
+Previewing Account
+→ Processing
+
+---
+
+Visible during:
+
+Processing
+Previewing Account
+
+Display the full email value.
+
+Example:
+
+Current Account
+
+[john@gmail.com](mailto:john@gmail.com)
+
+Rules:
+
+* Always show the current active email.
+* Update immediately when active email context changes.
+* Do not mask the email.
+
+---
+
+Visible only when an account has been captured.
+
+Display:
+
+Captured Account
+
+[john@gmail.com](mailto:john@gmail.com)
+
+This is the most recently captured account.
+
+Update immediately after successful capture.
+
+Persist between popup opens.
+
+Restore from storage.
+
+---
+
+## MONITORING LOGIC
+
+Use the existing interaction-first architecture.
+
+Processing starts when the user interacts with a valid email field:
+
+* input[autocomplete="email"]
+* input[name="email"]
+* input[name="username"][autocomplete="email"]
+
+When Processing starts:
+
+1. Set activeEmailInput.
+2. Resolve the parent form using:
+
+   * activeEmailInput.form
+   * fallback: activeEmailInput.closest('form')
+3. Inside ONLY that form, find:
+
+   * button[type="submit"]
+   * input[type="submit"]
+4. Ignore:
+
+   * button[type="button"]
+   * password visibility buttons
+5. Store activeSubmitButton.
+6. Lock the context.
+
+Current Account must always display the latest value from activeEmailInput.
+
+When activeSubmitButton is clicked:
+
+1. Verify activeEmailInput, activeForm and activeSubmitButton still exist.
+2. If React replaced them, re-resolve from activeEmailInput.
+3. Read the latest email value from activeEmailInput.
+4. Save the captured email.
+5. Update Captured Account.
+6. Change status to Previewing Account.
+
+When the user interacts with a different valid email field:
+
+1. Replace the previous context.
+2. Resolve its form and submit button.
+3. Update Current Account.
+4. Change status to Processing.
+
+Only associate an email field with a submit button from the same form.
+Never use dynamic React IDs for context resolution.
+
+---
+
+## PERFORMANCE REQUIREMENTS
+
+Keep the existing interaction-first architecture.
+
+Do not change the detection architecture.
+
+The Preview tab must use the existing active context and captured-account data instead of creating a separate detection system.
+
+The Preview tab is a display layer for the current capture state and captured account state.
