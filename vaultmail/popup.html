@@ -87,6 +87,25 @@
         </div>
       </div>
 
+      <!-- Current Account — shown during Processing and Previewing -->
+      <div class="pv-account-card" id="pvCurrentCard" style="display:none">
+        <p class="pv-account-label">Current Account</p>
+        <p class="pv-account-email" id="pvCurrentEmail"></p>
+      </div>
+
+      <!-- Captured Account — shown only after a successful capture -->
+      <div class="pv-account-card pv-account-card--captured" id="pvCapturedCard" style="display:none">
+        <div class="pv-account-header">
+          <p class="pv-account-label">Captured Account</p>
+          <button class="btn-copy-sm" id="btnCopyCapture" aria-label="Copy email">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <rect x="3.5" y="1" width="7.5" height="9" rx="1.3" stroke="currentColor" stroke-width="1.2"/>
+              <path d="M3 3.5H2.5A1.3 1.3 0 0 0 1.2 4.8V9.5C1.2 10.2 1.7 10.8 2.5 10.8H7C7.7 10.8 8.2 10.2 8.2 9.5V9.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <p class="pv-account-email pv-account-email--captured" id="pvCapturedEmail"></p>
+      </div>
 
     </div>
 

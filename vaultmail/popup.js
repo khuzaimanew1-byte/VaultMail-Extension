@@ -17,6 +17,7 @@ const btnSave          = document.getElementById('btnSave');
 const btnEmptyCta      = document.getElementById('btnEmptyCta');
 const btnDeleteCancel  = document.getElementById('btnDeleteCancel');
 const btnDeleteConfirm = document.getElementById('btnDeleteConfirm');
+const btnCopyCapture   = document.getElementById('btnCopyCapture');
 
 const modalOverlay  = document.getElementById('modalOverlay');
 const deleteOverlay = document.getElementById('deleteOverlay');
@@ -36,10 +37,14 @@ const panelEmails  = document.getElementById('panelEmails');
 const panelPreview = document.getElementById('panelPreview');
 
 // Preview panel
-const pvStatusCard = document.getElementById('pvStatusCard');
-const pvDot        = document.getElementById('pvDot');
-const pvTitle      = document.getElementById('pvTitle');
-const pvDesc       = document.getElementById('pvDesc');
+const pvStatusCard   = document.getElementById('pvStatusCard');
+const pvDot          = document.getElementById('pvDot');
+const pvTitle        = document.getElementById('pvTitle');
+const pvDesc         = document.getElementById('pvDesc');
+const pvCurrentCard  = document.getElementById('pvCurrentCard');
+const pvCurrentEmail = document.getElementById('pvCurrentEmail');
+const pvCapturedCard = document.getElementById('pvCapturedCard');
+const pvCapturedEmail= document.getElementById('pvCapturedEmail');
 
 const detectCount = document.getElementById('detectCount');
 const detectList  = document.getElementById('detectList');
@@ -106,20 +111,21 @@ function switchTab(tab, instant = false) {
 
 const STATUS_CONFIG = {
   activated: {
-    title:     'Extension Activated',
-    desc:      'Waiting for email interaction',
-    dot:       'dot-activated',
+    title: 'Extension Activated',
+    desc:  'Waiting for email interaction',
+    dot:   'dot-activated',
     cardClass: '',
   },
   processing: {
-    title:     'Processing',
-    desc:      'Email detected. Preparing capture.',
-    dot:       'dot-processing',
+    title: 'Processing',
+    desc:  'Email detected. Preparing capture.',
+    dot:   'dot-processing',
     cardClass: 'pv-status-card--processing',
   },
   active: {
-    title:     'Previewing Account',
-    dot:       'dot-active',
+    title: 'Previewing Account',
+    desc:  'Account captured successfully.',
+    dot:   'dot-active',
     cardClass: 'pv-status-card--active',
   },
 };
@@ -127,11 +133,22 @@ const STATUS_CONFIG = {
 function renderPreview() {
   const cfg = STATUS_CONFIG[previewStatus] || STATUS_CONFIG.activated;
 
+  // Status card
   pvTitle.textContent = cfg.title;
-  pvDesc.textContent  = previewStatus === 'active' ? (capturedEmail || '') : cfg.desc;
+  pvDesc.textContent  = cfg.desc;
 
-  pvDot.className        = 'pv-dot ' + cfg.dot;
+  pvDot.className = 'pv-dot ' + cfg.dot;
+
   pvStatusCard.className = 'pv-status-card ' + cfg.cardClass;
+
+  // Current Account — shown during processing and active
+  const showCurrent = (previewStatus === 'processing' || previewStatus === 'active') && currentFieldEmail;
+  pvCurrentCard.style.display = showCurrent ? 'block' : 'none';
+  if (showCurrent) pvCurrentEmail.textContent = currentFieldEmail;
+
+  // Captured Account — shown whenever a capture exists
+  pvCapturedCard.style.display = capturedEmail ? 'block' : 'none';
+  if (capturedEmail) pvCapturedEmail.textContent = capturedEmail;
 
   // Seg dot
   segDot.className = 'seg-dot';
@@ -320,6 +337,7 @@ btnClose.addEventListener('click', closeAddModal);
 btnSave.addEventListener('click', handleSave);
 btnDeleteCancel.addEventListener('click', closeDeleteModal);
 btnDeleteConfirm.addEventListener('click', confirmDelete);
+btnCopyCapture.addEventListener('click', () => { if (capturedEmail) copyText(capturedEmail, 'Copied'); });
 tabEmails.addEventListener('click',  () => switchTab('emails'));
 tabPreview.addEventListener('click', () => switchTab('preview'));
 modalOverlay.addEventListener('click',  e => { if (e.target === modalOverlay)  closeAddModal(); });
