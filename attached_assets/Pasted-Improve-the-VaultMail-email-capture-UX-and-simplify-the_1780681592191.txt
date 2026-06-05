@@ -1,0 +1,114 @@
+Improve the VaultMail email capture UX and simplify the status system.
+
+Current email detection logic is working correctly. The issue is that users receive no visual feedback when an email field is detected, and unnecessary debug UI is displayed.
+
+Required changes:
+
+1. Remove the entire "Detected Elements" section.
+
+* Remove all INPUT cards.
+* Remove all BTN cards.
+* Remove selector previews.
+* Remove internal detection/debug information.
+* Users should never see selectors or implementation details.
+
+2. Replace the current system with only 3 statuses.
+
+Status 1:
+"Extension Activated"
+
+Description:
+"Waiting for email interaction"
+
+Use this as the default state.
+
+Trigger:
+
+* Extension opened
+* Page refreshed
+* Active form/context lost
+* Active form removed from DOM
+* No email field currently selected
+
+Status 2:
+"Processing"
+
+Description:
+"Email field detected. Establishing form context..."
+
+Trigger:
+
+* User interacts with a valid email input
+* New email input becomes active
+* Context is being built or rebuilt
+
+Status 3:
+"Previewing Account"
+
+Description:
+"Monitoring account submission..."
+
+Trigger:
+
+* Email input detected
+* Form detected
+* Submit button detected
+* Context successfully locked
+
+This state remains active while waiting for submit/login/signup actions.
+
+3. Smart Status Switching
+
+The status should only change when necessary.
+
+Flow:
+
+Extension Activated
+→ user interacts with valid email input
+→ Processing
+→ context successfully established
+→ Previewing Account
+
+If user later interacts with another email field:
+
+Previewing Account
+→ Processing
+→ Previewing Account
+
+4. Refresh and Form Removal Handling
+
+If:
+
+* page refreshes
+* active form disappears
+* active email input disappears
+* active context becomes invalid
+
+Then immediately return to:
+
+Extension Activated
+
+Do NOT stay in Processing or Previewing Account when context no longer exists.
+
+5. Keep the existing optimized architecture.
+
+Do NOT add:
+
+* Continuous DOM scanning
+* MutationObserver
+* Repeated selector discovery
+* Dynamic React ID matching
+* Expensive UI updates
+
+6. Status Updates Must Be Minimal
+
+Do not update the UI on every keystroke, focus event, or interaction.
+
+Only update when:
+
+* Extension Activated → Processing
+* Processing → Previewing Account
+* Previewing Account → Processing (new email field)
+* Any state → Extension Activated (context lost or page refresh)
+
+The status card should be the only feedback mechanism and should clearly communicate what VaultMail is currently tracking without exposing internal implementation details.
