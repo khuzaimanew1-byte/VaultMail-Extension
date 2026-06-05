@@ -1,0 +1,283 @@
+CRITICAL FIX — STOP WAITING FOR REDIRECT
+
+The current implementation is still wrong.
+
+Do NOT wait for redirects.
+Do NOT wait for success pages.
+Do NOT wait for /~ URLs.
+
+The extension's purpose is simple:
+
+When I click the detected submit button, save the currently entered email immediately and show it in Preview.
+
+Nothing else.
+
+========================================
+IMPORTANT RULE
+==============
+
+Every email selector and button selector pair belongs together.
+
+Treat each pair independently.
+
+Do NOT mix selectors from different pairs.
+
+Bad:
+
+Email selector from Pair 1
++
+Button selector from Pair 3
+
+Never do this.
+
+Each pair must be processed separately.
+
+========================================
+PAIR 1
+======
+
+Email:
+
+#username-:rv:
+
+Button:
+
+#react-aria1080582148-:r1c:
+
+========================================
+PAIR 2
+======
+
+Email:
+
+#email-:r1o:
+
+Button:
+
+#react-aria8519681457-:r25:
+
+========================================
+PAIR 3
+======
+
+Email:
+
+#username-:r0:
+
+Button:
+
+#react-aria2175002955-:rd:
+
+========================================
+PAIR 4
+======
+
+Email:
+
+#email-:r1b:
+
+Button:
+
+#react-aria2637049068-:r1o:
+
+========================================
+DETECTION LOGIC
+===============
+
+Continuously monitor the DOM.
+
+For each pair:
+
+1. Find email input.
+2. Find corresponding button.
+3. If both exist:
+   register click handler.
+
+Example:
+
+Pair 1 only works with Pair 1.
+
+Pair 2 only works with Pair 2.
+
+Pair 3 only works with Pair 3.
+
+Pair 4 only works with Pair 4.
+
+========================================
+SAVE LOGIC
+==========
+
+When the button is clicked:
+
+Read current input value.
+
+Immediately save:
+
+currentActiveEmail
+
+Example:
+
+currentActiveEmail =
+emailInput.value.trim()
+
+Save instantly.
+
+No redirect check.
+
+No URL check.
+
+No success page check.
+
+No waiting.
+
+========================================
+PREVIEW UPDATE
+==============
+
+Immediately after button click:
+
+Update Preview tab.
+
+Example:
+
+Input:
+
+[first@gmail.com](mailto:first@gmail.com)
+
+Click button.
+
+Preview:
+
+[first@gmail.com](mailto:first@gmail.com)
+
+========================================
+EMAIL CHANGE FLOW
+=================
+
+Example:
+
+Input:
+
+[first@gmail.com](mailto:first@gmail.com)
+
+Click button.
+
+Preview:
+
+[first@gmail.com](mailto:first@gmail.com)
+
+Later:
+
+Change input to:
+
+[second@gmail.com](mailto:second@gmail.com)
+
+Click button again.
+
+Preview becomes:
+
+[second@gmail.com](mailto:second@gmail.com)
+
+The latest clicked email always wins.
+
+========================================
+SOURCE OF TRUTH
+===============
+
+Preview tab must ONLY read from:
+
+currentActiveEmail
+
+stored in:
+
+chrome.storage.local
+
+========================================
+STATUS FIX
+==========
+
+Current status never changes.
+
+Replace complicated logic.
+
+Status should be:
+
+Previewing Account
+
+whenever:
+
+currentActiveEmail exists
+
+Example:
+
+function currentPreviewState() {
+
+if (currentActiveEmail)
+return 'active';
+
+if (replitActive)
+return 'activated';
+
+return 'idle';
+}
+
+Do NOT require:
+
+formDetected
+
+Do NOT require:
+
+redirect success
+
+Do NOT require:
+
+/login
+
+Do NOT require:
+
+/~
+
+========================================
+DEBUG LOGGING
+=============
+
+Add temporary logs.
+
+Log:
+
+Pair detected
+
+Button clicked
+
+Email captured
+
+Email saved
+
+Preview updated
+
+This will reveal exactly where the flow breaks.
+
+========================================
+EXPECTED FLOW
+=============
+
+Input found
+↓
+Button found
+↓
+User clicks button
+↓
+Email captured
+↓
+currentActiveEmail updated
+↓
+chrome.storage.local updated
+↓
+Preview tab updated instantly
+↓
+Status becomes:
+"Previewing Account"
+
+No redirect required.
+No URL matching required.
+No success page required.

@@ -7,7 +7,6 @@
 let emails             = [];
 let currentActiveEmail = null;
 let replitActive       = false;
-let formDetected       = false;
 let activeTab          = 'emails';
 let pendingDelete      = null;
 
@@ -44,10 +43,9 @@ const deleteTarget     = document.getElementById('deleteTarget');
 
 const stateIdle        = document.getElementById('stateIdle');
 const stateActivated   = document.getElementById('stateActivated');
-const stateProcessing  = document.getElementById('stateProcessing');
 const stateActive      = document.getElementById('stateActive');
 
-// Debug panel refs
+// Debug
 const dbgReplitActive  = document.getElementById('dbgReplitActive');
 const dbgFormDetected  = document.getElementById('dbgFormDetected');
 const dbgPendingEmail  = document.getElementById('dbgPendingEmail');
@@ -60,12 +58,11 @@ const dbgState         = document.getElementById('dbgState');
 
 function loadState(callback) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'currentActiveEmail', 'replitActive', 'formDetected'],
+    ['vaultmail_emails', 'currentActiveEmail', 'replitActive'],
     (r) => {
       emails             = r.vaultmail_emails   || [];
       currentActiveEmail = r.currentActiveEmail || null;
       replitActive       = r.replitActive       || false;
-      formDetected       = r.formDetected       || false;
       callback();
     }
   );
@@ -126,36 +123,36 @@ function switchTab(tab, instant = false) {
 }
 
 // ============================================================
-// PREVIEW STATE — exact spec from requirements
+// PREVIEW STATE
+//
+//  active    → currentActiveEmail is set
+//  activated → replitActive is true, no email yet
+//  idle      → nothing
 // ============================================================
 
 function currentPreviewState() {
-  if (currentActiveEmail && !formDetected) return 'active';
-  if (formDetected)                         return 'processing';
-  if (replitActive)                         return 'activated';
+  if (currentActiveEmail) return 'active';
+  if (replitActive)       return 'activated';
   return 'idle';
 }
 
 function renderPreview() {
   const state = currentPreviewState();
 
-  stateIdle.style.display       = state === 'idle'       ? 'flex' : 'none';
-  stateActivated.style.display  = state === 'activated'  ? 'flex' : 'none';
-  stateProcessing.style.display = state === 'processing' ? 'flex' : 'none';
-  stateActive.style.display     = state === 'active'     ? 'flex' : 'none';
+  stateIdle.style.display      = state === 'idle'      ? 'flex' : 'none';
+  stateActivated.style.display = state === 'activated' ? 'flex' : 'none';
+  stateActive.style.display    = state === 'active'    ? 'flex' : 'none';
 
   if (state === 'active') {
     previewEmail.textContent = currentActiveEmail;
   }
 
-  // Tab dot
+  // Tab button dot
   segDot.className = 'seg-dot';
-  if      (state === 'processing') segDot.classList.add('dot-processing');
-  else if (state === 'activated')  segDot.classList.add('dot-activated');
-  else if (state === 'active')     segDot.classList.add('dot-active');
-  else                             segDot.classList.add('dot-idle');
+  if      (state === 'activated') segDot.classList.add('dot-activated');
+  else if (state === 'active')    segDot.classList.add('dot-active');
+  else                            segDot.classList.add('dot-idle');
 
-  // Debug panel
   updateDebug(state);
 }
 
@@ -164,23 +161,30 @@ function renderPreview() {
 // ============================================================
 
 function updateDebug(state) {
-  chrome.storage.local.get(['pendingEmail'], (r) => {
-    dbgReplitActive.textContent = replitActive   ? 'true' : 'false';
-    dbgReplitActive.className   = 'debug-val ' + (replitActive   ? 'val-true' : 'val-false');
-
-    dbgFormDetected.textContent = formDetected   ? 'true' : 'false';
-    dbgFormDetected.className   = 'debug-val ' + (formDetected   ? 'val-true' : 'val-false');
-
-    const pe = r.pendingEmail || '—';
-    dbgPendingEmail.textContent = pe;
-    dbgPendingEmail.className   = 'debug-val ' + (pe !== '—' ? 'val-true' : '');
-
-    const ae = currentActiveEmail || '—';
-    dbgActiveEmail.textContent  = ae;
-    dbgActiveEmail.className    = 'debug-val ' + (ae !== '—' ? 'val-true' : '');
-
-    dbgState.textContent = state;
-    dbgState.className   = 'debug-val val-state val-state-' + state;
+  chrome.storage.local.get(['pendingEmail', 'formDetected'], (r) => {
+    if (dbgReplitActive) {
+      dbgReplitActive.textContent = replitActive ? 'true' : 'false';
+      dbgReplitActive.className   = 'debug-val ' + (replitActive ? 'val-true' : 'val-false');
+    }
+    if (dbgFormDetected) {
+      const fd = r.formDetected || false;
+      dbgFormDetected.textContent = fd ? 'true' : 'false';
+      dbgFormDetected.className   = 'debug-val ' + (fd ? 'val-true' : 'val-false');
+    }
+    if (dbgPendingEmail) {
+      const pe = r.pendingEmail || '—';
+      dbgPendingEmail.textContent = pe;
+      dbgPendingEmail.className   = 'debug-val ' + (pe !== '—' ? 'val-true' : '');
+    }
+    if (dbgActiveEmail) {
+      const ae = currentActiveEmail || '—';
+      dbgActiveEmail.textContent  = ae;
+      dbgActiveEmail.className    = 'debug-val ' + (ae !== '—' ? 'val-true' : '');
+    }
+    if (dbgState) {
+      dbgState.textContent = state;
+      dbgState.className   = 'debug-val val-state val-state-' + state;
+    }
   });
 }
 
@@ -346,64 +350,28 @@ function showToast(msg) {
 chrome.runtime.onMessage.addListener((message) => {
   switch (message.type) {
 
-    case 'FORM_DETECTED':
-      formDetected = true;
-      renderPreview();
-      break;
-
-    case 'FORM_CLEARED':
-      formDetected = false;
-      renderPreview();
-      break;
-
-    case 'EMAIL_SUBMITTED':
-      formDetected       = true;
-      currentActiveEmail = message.email;
-      renderPreview();
-      break;
-
-    case 'LOGIN_SUCCESS':
     case 'ACTIVE_EMAIL_UPDATED':
-      formDetected       = false;
-      currentActiveEmail = message.email || currentActiveEmail;
+      currentActiveEmail = message.email || null;
       renderPreview();
       break;
 
     case 'REPLIT_STATUS_CHANGED':
       replitActive = message.active;
       if (!message.active) {
-        formDetected       = false;
         currentActiveEmail = null;
-        chrome.storage.local.set({ formDetected: false, currentActiveEmail: null });
+        chrome.storage.local.set({ currentActiveEmail: null });
       }
       renderPreview();
-      break;
-
-    case 'URL_CHANGED':
-      chrome.storage.local.get(
-        ['currentActiveEmail', 'replitActive', 'formDetected'],
-        (r) => {
-          currentActiveEmail = r.currentActiveEmail || null;
-          replitActive       = r.replitActive       || false;
-          formDetected       = r.formDetected       || false;
-          renderPreview();
-        }
-      );
       break;
   }
 });
 
-// Storage change fallback — catches updates even when popup was open
-// before the content script fired
+// Storage fallback — catches content-script writes when popup is already open
 chrome.storage.onChanged.addListener((changes) => {
   let changed = false;
 
   if ('currentActiveEmail' in changes) {
     currentActiveEmail = changes.currentActiveEmail.newValue || null;
-    changed = true;
-  }
-  if ('formDetected' in changes) {
-    formDetected = changes.formDetected.newValue || false;
     changed = true;
   }
   if ('replitActive' in changes) {

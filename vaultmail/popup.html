@@ -96,21 +96,11 @@
         <div class="status-dot dot-activated"></div>
         <div class="status-body">
           <p class="status-title">Extension Activated</p>
-          <p class="status-sub">Monitoring the Replit login form</p>
+          <p class="status-sub">Sign in to Replit to capture your email</p>
         </div>
       </div>
 
-      <!-- State: processing -->
-      <div class="status-card status-card--processing" id="stateProcessing" style="display:none">
-        <div class="status-dot dot-processing"></div>
-        <div class="status-body">
-          <p class="status-title">Processing Login</p>
-          <p class="status-sub">Login form detected — waiting for sign-in</p>
-        </div>
-        <div class="spinner"></div>
-      </div>
-
-      <!-- State: active -->
+      <!-- State: active (email captured on button click) -->
       <div class="status-card status-card--active" id="stateActive" style="display:none">
         <div class="status-dot dot-active"></div>
         <div class="status-body">
@@ -131,8 +121,8 @@
         <div class="debug-row"><span class="debug-key">replitActive</span><span class="debug-val" id="dbgReplitActive">—</span></div>
         <div class="debug-row"><span class="debug-key">formDetected</span><span class="debug-val" id="dbgFormDetected">—</span></div>
         <div class="debug-row"><span class="debug-key">pendingEmail</span><span class="debug-val" id="dbgPendingEmail">—</span></div>
-        <div class="debug-row"><span class="debug-key">activeEmail</span><span class="debug-val" id="dbgActiveEmail">—</span></div>
-        <div class="debug-row"><span class="debug-key">state</span><span class="debug-val" id="dbgState">—</span></div>
+        <div class="debug-row"><span class="debug-key">activeEmail</span><span class="debug-val"  id="dbgActiveEmail">—</span></div>
+        <div class="debug-row"><span class="debug-key">state</span><span class="debug-val"        id="dbgState">—</span></div>
       </div>
 
     </div>

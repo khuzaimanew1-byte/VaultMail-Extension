@@ -3,179 +3,143 @@
 // ============================================================
 // CONTENT SCRIPT — https://replit.com/*
 //
-// Detection strategy: selector-only (no URL-based form detection).
-// MutationObserver recalculates formDetected on every DOM change.
-// pendingEmail is saved on every keystroke — not on submit.
-// LOGIN_SUCCESS fires when URL becomes /~ AND pendingEmail exists.
+// Strategy: 4 independent selector pairs.
+// When EITHER email input OR submit button in a pair is found,
+// we register listeners for that pair.
+// On button click → immediately save currentActiveEmail.
+// No redirect waiting. No URL matching. No /~ required.
 // ============================================================
 
-const HOME_PATTERN = /^https:\/\/replit\.com\/~/;
+const PAIRS = [
+  {
+    name:     'Pair 1',
+    emailSel: '[id="username-:rv:"]',
+    btnSel:   '[id="react-aria1080582148-:r1c:"]',
+  },
+  {
+    name:     'Pair 2',
+    emailSel: '[id="email-:r1o:"]',
+    btnSel:   '[id="react-aria8519681457-:r25:"]',
+  },
+  {
+    name:     'Pair 3',
+    emailSel: '[id="username-:r0:"]',
+    btnSel:   '[id="react-aria2175002955-:rd:"]',
+  },
+  {
+    name:     'Pair 4',
+    emailSel: '[id="email-:r1b:"]',
+    btnSel:   '[id="react-aria2637049068-:r1o:"]',
+  },
+];
 
-// These are the exact Replit login form selectors.
-// Attribute form avoids CSS escaping issues with colons.
-const SELECTORS = {
-  emailInput: '[id="username-:rv:"]',
-  submitBtn:  '[id="react-aria1080582148-:r1c:"]',
-};
-
-// ── State ─────────────────────────────────────────────────────
-
-let currentFormDetected = false;
-let pendingEmail        = '';
-let loginInProgress     = false;
+// Track which pairs already have click handlers so we don't double-attach
+const attachedPairs = new Set();
 
 // ── Helpers ───────────────────────────────────────────────────
-
-function isValidEmail(e) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
 
 function send(type, extra = {}) {
   chrome.runtime.sendMessage({ type, ...extra }).catch(() => {});
 }
 
-function getFormEls() {
-  return {
-    emailInput: document.querySelector(SELECTORS.emailInput),
-    submitBtn:  document.querySelector(SELECTORS.submitBtn),
-  };
+function log(...args) {
+  console.log('[VaultMail]', ...args);
 }
 
-// ── Core: recalculate formDetected from DOM ───────────────────
+// ── Save email immediately ────────────────────────────────────
 
-function updateFormDetected() {
-  const { emailInput, submitBtn } = getFormEls();
-  const detected = !!(emailInput && submitBtn);
+function saveEmail(email, pairName) {
+  if (!email) return;
+  log('Email captured from', pairName, '→', email);
 
-  if (detected === currentFormDetected) return; // no change
-  currentFormDetected = detected;
-
-  chrome.storage.local.set({ formDetected: detected });
-  send(detected ? 'FORM_DETECTED' : 'FORM_CLEARED');
-
-  if (detected) {
-    attachEmailTracking(emailInput, submitBtn);
-  }
-}
-
-// ── Email tracking — attach once per form appearance ─────────
-
-let trackingAttached = false;
-
-function attachEmailTracking(emailInput, submitBtn) {
-  if (trackingAttached) return;
-  trackingAttached = true;
-
-  // Save every keystroke immediately
-  const saveEmail = () => {
-    const v = emailInput.value.trim().toLowerCase();
-    if (v) {
-      pendingEmail = v;
-      chrome.storage.local.set({ pendingEmail: v });
-    }
-  };
-
-  emailInput.addEventListener('input',  saveEmail);
-  emailInput.addEventListener('change', saveEmail);
-
-  // On submit: mark loginInProgress
-  const onSubmit = () => {
-    chrome.storage.local.get(['pendingEmail'], (r) => {
-      const email = r.pendingEmail || pendingEmail;
-      if (email) {
-        loginInProgress = true;
-        chrome.storage.local.set({ loginInProgress: true });
-      }
-    });
-  };
-
-  submitBtn.addEventListener('click',     onSubmit, { capture: true });
-  submitBtn.addEventListener('mousedown', saveEmail, { capture: true });
-
-  const form = emailInput.closest('form');
-  if (form) form.addEventListener('submit', onSubmit, { capture: true });
-}
-
-// ── MutationObserver — recompute on every DOM change ─────────
-
-const observer = new MutationObserver(updateFormDetected);
-
-function startObserver() {
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree:   true,
+  chrome.storage.local.set({ currentActiveEmail: email }, () => {
+    log('Email saved to storage:', email);
+    send('ACTIVE_EMAIL_UPDATED', { email });
+    log('Preview updated');
   });
 }
 
-// ── Navigation / redirect detection ──────────────────────────
+// ── Attach listeners for one pair ─────────────────────────────
 
-function onNavigate() {
-  const url = window.location.href;
+function attachPair(pair) {
+  if (attachedPairs.has(pair.name)) return true; // already done
 
-  if (HOME_PATTERN.test(url)) {
-    // Login redirect completed — promote pendingEmail
-    chrome.storage.local.get(['pendingEmail', 'currentActiveEmail'], (r) => {
-      const email = pendingEmail || r.pendingEmail || r.currentActiveEmail || '';
+  const emailInput = document.querySelector(pair.emailSel);
+  const submitBtn  = document.querySelector(pair.btnSel);
 
-      if (isValidEmail(email)) {
-        chrome.storage.local.set({
-          currentActiveEmail: email,
-          pendingEmail:       null,
-          formDetected:       false,
-          loginInProgress:    false,
-        });
-        send('LOGIN_SUCCESS', { email });
-      } else {
-        chrome.storage.local.set({ formDetected: false, loginInProgress: false });
-        send('FORM_CLEARED');
-      }
-    });
+  if (!emailInput || !submitBtn) return false; // not found yet
 
-    // Reset local state
-    currentFormDetected = false;
-    trackingAttached    = false;
-    loginInProgress     = false;
-    pendingEmail        = '';
-    return;
+  log(pair.name, 'detected — attaching listeners');
+
+  // On every click of the submit button: capture current value immediately
+  submitBtn.addEventListener('click', () => {
+    const email = emailInput.value.trim().toLowerCase();
+    log(pair.name, 'button clicked — email value:', email || '(empty)');
+    if (email) saveEmail(email, pair.name);
+  }, { capture: true });
+
+  // Also capture on mousedown so we get the value before any blur event
+  submitBtn.addEventListener('mousedown', () => {
+    const email = emailInput.value.trim().toLowerCase();
+    if (email) {
+      // Pre-save; the click handler will confirm
+      chrome.storage.local.set({ pendingEmail: email });
+      log(pair.name, 'mousedown pre-save:', email);
+    }
+  }, { capture: true });
+
+  // Keyboard: Enter on the input field
+  emailInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const email = emailInput.value.trim().toLowerCase();
+      log(pair.name, 'Enter pressed — email:', email || '(empty)');
+      if (email) saveEmail(email, pair.name);
+    }
+  });
+
+  // Track the form submit event too
+  const form = emailInput.closest('form');
+  if (form) {
+    form.addEventListener('submit', () => {
+      const email = emailInput.value.trim().toLowerCase();
+      log(pair.name, 'form submit — email:', email || '(empty)');
+      if (email) saveEmail(email, pair.name);
+    }, { capture: true });
   }
 
-  // Page changed — reset tracking so we can re-attach on new form
-  trackingAttached    = false;
-  currentFormDetected = false;
-  chrome.storage.local.set({ formDetected: false, loginInProgress: false });
-
-  // Re-run immediately for new page content
-  setTimeout(updateFormDetected, 100);
+  attachedPairs.add(pair.name);
+  log(pair.name, 'listeners attached successfully');
+  return true;
 }
 
-// ── SPA navigation patching ───────────────────────────────────
+// ── Scan all pairs ────────────────────────────────────────────
 
-(function patchHistory() {
-  const _push    = history.pushState.bind(history);
-  const _replace = history.replaceState.bind(history);
-  history.pushState    = (...a) => { _push(...a);    setTimeout(onNavigate, 80); };
-  history.replaceState = (...a) => { _replace(...a); setTimeout(onNavigate, 80); };
-})();
-
-window.addEventListener('popstate', () => setTimeout(onNavigate, 80));
-
-// Capture email on pagehide (safety net for fast navigations)
-window.addEventListener('pagehide', () => {
-  const { emailInput } = getFormEls();
-  if (emailInput?.value) {
-    const v = emailInput.value.trim().toLowerCase();
-    if (v) chrome.storage.local.set({ pendingEmail: v });
+function scanPairs() {
+  for (const pair of PAIRS) {
+    attachPair(pair);
   }
+}
+
+// ── MutationObserver — re-scan on DOM changes ─────────────────
+// Replit is a React SPA: elements appear asynchronously.
+// Scan every time the DOM changes until all pairs are attached.
+
+const observer = new MutationObserver(() => {
+  scanPairs();
+
+  // If all pairs are attached, disconnect (saves CPU)
+  if (attachedPairs.size === PAIRS.length) {
+    log('All pairs attached — disconnecting observer');
+    observer.disconnect();
+  }
+});
+
+observer.observe(document.documentElement, {
+  childList: true,
+  subtree:   true,
 });
 
 // ── Init ──────────────────────────────────────────────────────
 
-// Restore any pending email from previous page load
-chrome.storage.local.get(['pendingEmail'], (r) => {
-  if (r.pendingEmail) pendingEmail = r.pendingEmail;
-});
-
-// Clear stale form state on fresh load
-chrome.storage.local.set({ formDetected: false, loginInProgress: false });
-
-// Start observer + initial check
-startObserver();
-updateFormDetected();
+log('Content script loaded on', window.location.href);
+scanPairs(); // immediate check on load
