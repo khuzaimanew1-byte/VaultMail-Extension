@@ -1,0 +1,93 @@
+Fix the email-to-submit detection system using an interaction-first architecture.
+
+Current issue:
+The system detects email selectors and submit selectors independently, which causes incorrect mappings, false detections, and unnecessary DOM scanning.
+
+Implement the following logic:
+
+1. Do NOT continuously scan the DOM.
+2. Do NOT use MutationObserver for this feature.
+3. Do NOT globally search for submit buttons on every interaction.
+4. Do NOT rely on dynamic React IDs such as:
+
+   * react-aria*
+   * username-:xx:
+   * email-:xx:
+
+New architecture:
+
+* Add a lightweight interaction listener.
+* Only react when the user interacts with an email input candidate.
+
+Email input candidates:
+
+* input[autocomplete="email"]
+* input[name="email"]
+* input[name="username"] when used as an email field
+
+When the user FIRST interacts with an email field:
+
+1. Detect the email input.
+2. Find its nearest form:
+
+   * input.form
+   * fallback: input.closest('form')
+3. Within ONLY that form, find the submit button:
+
+   * button[type="submit"]
+   * input[type="submit"]
+4. Store references:
+
+   * activeEmailInput
+   * activeForm
+   * activeSubmitButton
+5. Lock this context.
+6. Do not re-run email detection on every interaction.
+
+After context is established:
+
+* Only monitor the stored submit button.
+* When the stored submit button is clicked:
+
+  * Read the latest value from activeEmailInput.
+  * Save/update the email mapping.
+  * Always use the current input value at click time.
+
+Important rules:
+
+* Ignore buttons with:
+
+  * type="button"
+  * aria-label="Show password"
+  * aria-label="Hide password"
+
+* Password visibility buttons must never be treated as submit buttons.
+
+* Search only inside the active form.
+
+* Never associate an email field with buttons outside its form.
+
+React/Rerender Safety:
+
+Before using stored references, verify they still exist in the DOM.
+
+Example:
+
+if (!document.contains(activeSubmitButton)) {
+re-resolve using the stored email input:
+activeForm = activeEmailInput.form || activeEmailInput.closest('form');
+activeSubmitButton = activeForm?.querySelector(
+'button[type="submit"], input[type="submit"]'
+);
+}
+
+Performance goals:
+
+* No continuous DOM scanning.
+* No page-wide button searches.
+* No expensive observers.
+* Event-driven architecture.
+* Minimal RAM usage.
+* Minimal CPU usage.
+* Support dynamically rendered forms, modals, and React rerenders.
+* Prioritize detection accuracy and stability over dynamic ID selectors.
