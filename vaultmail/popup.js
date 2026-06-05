@@ -1,18 +1,10 @@
 'use strict';
 
-// ============================================================
-// STATE
-// ============================================================
-
 let emails             = [];
 let currentActiveEmail = null;
 let replitActive       = false;
 let activeTab          = 'emails';
 let pendingDelete      = null;
-
-// ============================================================
-// DOM REFS
-// ============================================================
 
 const btnAdd           = document.getElementById('btnAdd');
 const btnClose         = document.getElementById('btnClose');
@@ -45,25 +37,20 @@ const stateIdle        = document.getElementById('stateIdle');
 const stateActivated   = document.getElementById('stateActivated');
 const stateActive      = document.getElementById('stateActive');
 
-// Debug
-const dbgReplitActive  = document.getElementById('dbgReplitActive');
-const dbgFormDetected  = document.getElementById('dbgFormDetected');
-const dbgPendingEmail  = document.getElementById('dbgPendingEmail');
-const dbgActiveEmail   = document.getElementById('dbgActiveEmail');
-const dbgState         = document.getElementById('dbgState');
+const detectCount      = document.getElementById('detectCount');
+const detectList       = document.getElementById('detectList');
+const detectEmpty      = document.getElementById('detectEmpty');
 
-// ============================================================
-// STORAGE
-// ============================================================
+// ── Storage ───────────────────────────────────────────────────
 
-function loadState(callback) {
+function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'currentActiveEmail', 'replitActive'],
+    ['vaultmail_emails', 'currentActiveEmail', 'replitActive', 'detectedSelectors'],
     (r) => {
-      emails             = r.vaultmail_emails   || [];
-      currentActiveEmail = r.currentActiveEmail || null;
-      replitActive       = r.replitActive       || false;
-      callback();
+      emails             = r.vaultmail_emails    || [];
+      currentActiveEmail = r.currentActiveEmail  || null;
+      replitActive       = r.replitActive        || false;
+      cb(r.detectedSelectors || []);
     }
   );
 }
@@ -72,21 +59,17 @@ function saveEmails(cb) {
   chrome.storage.local.set({ vaultmail_emails: emails }, cb);
 }
 
-// ============================================================
-// PARSING
-// ============================================================
+// ── Parsing ───────────────────────────────────────────────────
 
 function parseEmails(raw) {
   return [...new Set(
     raw.split(/[\n,]+/)
       .map(e => e.trim().toLowerCase())
-      .filter(e => e.length > 0 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
+      .filter(e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e))
   )];
 }
 
-// ============================================================
-// SEGMENTED CONTROL
-// ============================================================
+// ── Segmented control ─────────────────────────────────────────
 
 function positionIndicator(btn) {
   const cRect = segmented.getBoundingClientRect();
@@ -95,21 +78,13 @@ function positionIndicator(btn) {
   segIndicator.style.width = bRect.width + 'px';
 }
 
-// ============================================================
-// TAB SWITCHING
-// ============================================================
-
 function switchTab(tab, instant = false) {
   activeTab = tab;
-
   tabEmails.classList.toggle('active', tab === 'emails');
   tabPreview.classList.toggle('active', tab === 'preview');
-
   panelEmails.style.display  = tab === 'emails'  ? 'block' : 'none';
   panelPreview.style.display = tab === 'preview' ? 'block' : 'none';
-
   const btn = tab === 'emails' ? tabEmails : tabPreview;
-
   if (instant) {
     const prev = segIndicator.style.transition;
     segIndicator.style.transition = 'none';
@@ -122,13 +97,7 @@ function switchTab(tab, instant = false) {
   }
 }
 
-// ============================================================
-// PREVIEW STATE
-//
-//  active    → currentActiveEmail is set
-//  activated → replitActive is true, no email yet
-//  idle      → nothing
-// ============================================================
+// ── Preview state ─────────────────────────────────────────────
 
 function currentPreviewState() {
   if (currentActiveEmail) return 'active';
@@ -138,69 +107,77 @@ function currentPreviewState() {
 
 function renderPreview() {
   const state = currentPreviewState();
-
   stateIdle.style.display      = state === 'idle'      ? 'flex' : 'none';
   stateActivated.style.display = state === 'activated' ? 'flex' : 'none';
   stateActive.style.display    = state === 'active'    ? 'flex' : 'none';
+  if (state === 'active') previewEmail.textContent = currentActiveEmail;
 
-  if (state === 'active') {
-    previewEmail.textContent = currentActiveEmail;
-  }
-
-  // Tab button dot
   segDot.className = 'seg-dot';
   if      (state === 'activated') segDot.classList.add('dot-activated');
   else if (state === 'active')    segDot.classList.add('dot-active');
   else                            segDot.classList.add('dot-idle');
-
-  updateDebug(state);
 }
 
-// ============================================================
-// DEBUG PANEL
-// ============================================================
+// ── Selector detection cards ──────────────────────────────────
 
-function updateDebug(state) {
-  chrome.storage.local.get(['pendingEmail', 'formDetected'], (r) => {
-    if (dbgReplitActive) {
-      dbgReplitActive.textContent = replitActive ? 'true' : 'false';
-      dbgReplitActive.className   = 'debug-val ' + (replitActive ? 'val-true' : 'val-false');
-    }
-    if (dbgFormDetected) {
-      const fd = r.formDetected || false;
-      dbgFormDetected.textContent = fd ? 'true' : 'false';
-      dbgFormDetected.className   = 'debug-val ' + (fd ? 'val-true' : 'val-false');
-    }
-    if (dbgPendingEmail) {
-      const pe = r.pendingEmail || '—';
-      dbgPendingEmail.textContent = pe;
-      dbgPendingEmail.className   = 'debug-val ' + (pe !== '—' ? 'val-true' : '');
-    }
-    if (dbgActiveEmail) {
-      const ae = currentActiveEmail || '—';
-      dbgActiveEmail.textContent  = ae;
-      dbgActiveEmail.className    = 'debug-val ' + (ae !== '—' ? 'val-true' : '');
-    }
-    if (dbgState) {
-      dbgState.textContent = state;
-      dbgState.className   = 'debug-val val-state val-state-' + state;
-    }
+function renderDetected(selectors) {
+  detectCount.textContent = selectors.length;
+
+  // Remove old cards (keep detectEmpty)
+  [...detectList.querySelectorAll('.detect-card')].forEach(c => c.remove());
+
+  if (!selectors.length) {
+    detectEmpty.style.display = 'block';
+    return;
+  }
+
+  detectEmpty.style.display = 'none';
+
+  selectors.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'detect-card detect-card--' + s.kind;
+
+    // Icon
+    const icon = s.kind === 'input'
+      ? `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+           <rect x="1" y="2" width="8" height="6.5" rx="1.3" stroke="currentColor" stroke-width="1.1"/>
+           <path d="M1 3.5L5 6.2L9 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+         </svg>`
+      : `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+           <rect x="1" y="1" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.1"/>
+           <path d="M3.5 5H6.5M5 3.5V6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
+         </svg>`;
+
+    // Build detail line
+    const parts = [];
+    if (s.id)   parts.push(`id="${s.id}"`);
+    if (s.name) parts.push(`name="${s.name}"`);
+    if (s.type && s.type !== 'text') parts.push(`type="${s.type}"`);
+    if (s.aria) parts.push(`aria-label="${s.aria}"`);
+    if (s.text && !s.aria && s.kind === 'button') parts.push(`"${s.text}"`);
+    const detail = parts.join('  ·  ') || s.tagName;
+
+    card.innerHTML = `
+      <div class="dc-icon dc-icon--${s.kind}">${icon}</div>
+      <div class="dc-body">
+        <p class="dc-sel">${s.sel}</p>
+        <p class="dc-detail">${detail}</p>
+      </div>
+      <div class="dc-badge dc-badge--${s.kind}">${s.kind === 'input' ? 'INPUT' : 'BTN'}</div>
+    `;
+
+    detectList.appendChild(card);
   });
 }
 
-// ============================================================
-// EMAIL GRID
-// ============================================================
+// ── Email grid ────────────────────────────────────────────────
 
 function renderGrid() {
   const has = emails.length > 0;
-
   emptyState.style.display = has ? 'none' : 'flex';
   emailGrid.style.display  = has ? 'grid' : 'none';
   statsRow.style.display   = has ? 'block' : 'none';
-
   if (!has) return;
-
   statCount.textContent = emails.length;
   emailGrid.innerHTML   = '';
   emails.forEach((email, i) => emailGrid.appendChild(createCard(email, i)));
@@ -210,7 +187,6 @@ function createCard(email, index) {
   const card = document.createElement('div');
   card.className = 'email-card';
   card.style.animationDelay = `${index * 20}ms`;
-
   card.innerHTML = `
     <div class="card-icon">
       <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -232,49 +208,25 @@ function createCard(email, index) {
         </svg>
       </button>
     </div>`;
-
-  card.querySelector('.btn-copy').addEventListener('click', e => {
-    e.stopPropagation();
-    copyText(email, 'Copied');
-  });
-  card.querySelector('.btn-delete').addEventListener('click', e => {
-    e.stopPropagation();
-    openDeleteModal(email);
-  });
-
+  card.querySelector('.btn-copy').addEventListener('click', e => { e.stopPropagation(); copyText(email, 'Copied'); });
+  card.querySelector('.btn-delete').addEventListener('click', e => { e.stopPropagation(); openDeleteModal(email); });
   return card;
 }
 
-// ============================================================
-// CLIPBOARD
-// ============================================================
+// ── Clipboard ─────────────────────────────────────────────────
 
 function copyText(text, msg) {
   const fallback = () => {
-    const ta = Object.assign(document.createElement('textarea'), {
-      value: text, style: 'position:fixed;opacity:0'
-    });
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand('copy');
-    document.body.removeChild(ta);
+    const ta = Object.assign(document.createElement('textarea'), { value: text, style: 'position:fixed;opacity:0' });
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
     showToast(msg);
   };
-  navigator.clipboard
-    ? navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(fallback)
-    : fallback();
+  navigator.clipboard ? navigator.clipboard.writeText(text).then(() => showToast(msg)).catch(fallback) : fallback();
 }
 
-// ============================================================
-// ADD MODAL
-// ============================================================
+// ── Modals ────────────────────────────────────────────────────
 
-function openAddModal() {
-  modalOverlay.classList.add('open');
-  emailInput.value = '';
-  setTimeout(() => emailInput.focus(), 180);
-}
-
+function openAddModal() { modalOverlay.classList.add('open'); emailInput.value = ''; setTimeout(() => emailInput.focus(), 180); }
 function closeAddModal() { modalOverlay.classList.remove('open'); }
 
 function handleSave() {
@@ -282,142 +234,81 @@ function handleSave() {
   if (!raw) return;
   const parsed = parseEmails(raw);
   if (!parsed.length) { showToast('No valid emails found'); return; }
-
   const before = emails.length;
   emails = [...new Set([...emails, ...parsed])];
   const added = emails.length - before;
-
-  saveEmails(() => {
-    closeAddModal();
-    renderGrid();
-    showToast(added === 0 ? 'Already saved' : `${added} email${added !== 1 ? 's' : ''} saved`);
-  });
+  saveEmails(() => { closeAddModal(); renderGrid(); showToast(added === 0 ? 'Already saved' : `${added} email${added !== 1 ? 's' : ''} saved`); });
 }
 
-// ============================================================
-// DELETE MODAL
-// ============================================================
-
-function openDeleteModal(email) {
-  pendingDelete = email;
-  deleteTarget.textContent = email;
-  deleteOverlay.classList.add('open');
-}
-
-function closeDeleteModal() {
-  deleteOverlay.classList.remove('open');
-  pendingDelete = null;
-}
+function openDeleteModal(email) { pendingDelete = email; deleteTarget.textContent = email; deleteOverlay.classList.add('open'); }
+function closeDeleteModal() { deleteOverlay.classList.remove('open'); pendingDelete = null; }
 
 function confirmDelete() {
   if (!pendingDelete) return;
   const target = pendingDelete;
   closeDeleteModal();
-
-  const card = [...emailGrid.querySelectorAll('.email-card')]
-    .find(c => c.querySelector('.card-email')?.title === target);
-
-  const finish = () => {
-    emails = emails.filter(e => e !== target);
-    saveEmails(() => renderGrid());
-  };
-
-  if (card) {
-    card.classList.add('card-removing');
-    card.addEventListener('animationend', finish, { once: true });
-  } else {
-    finish();
-  }
+  const card = [...emailGrid.querySelectorAll('.email-card')].find(c => c.querySelector('.card-email')?.title === target);
+  const finish = () => { emails = emails.filter(e => e !== target); saveEmails(() => renderGrid()); };
+  if (card) { card.classList.add('card-removing'); card.addEventListener('animationend', finish, { once: true }); }
+  else finish();
 }
 
-// ============================================================
-// TOAST
-// ============================================================
+// ── Toast ─────────────────────────────────────────────────────
 
 let toastTimer = null;
-
 function showToast(msg) {
-  toast.textContent = msg;
-  toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove('show'), 2100);
+  toast.textContent = msg; toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2100);
 }
 
-// ============================================================
-// RUNTIME MESSAGES
-// ============================================================
+// ── Messages ──────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
-  switch (message.type) {
-
-    case 'ACTIVE_EMAIL_UPDATED':
-      currentActiveEmail = message.email || null;
-      renderPreview();
-      break;
-
-    case 'REPLIT_STATUS_CHANGED':
-      replitActive = message.active;
-      if (!message.active) {
-        currentActiveEmail = null;
-        chrome.storage.local.set({ currentActiveEmail: null });
-      }
-      renderPreview();
-      break;
+  if (message.type === 'ACTIVE_EMAIL_UPDATED') {
+    currentActiveEmail = message.email || null;
+    renderPreview();
+  }
+  if (message.type === 'REPLIT_STATUS_CHANGED') {
+    replitActive = message.active;
+    if (!message.active) { currentActiveEmail = null; chrome.storage.local.set({ currentActiveEmail: null }); }
+    renderPreview();
+  }
+  if (message.type === 'SELECTORS_UPDATED') {
+    renderDetected(message.selectors || []);
   }
 });
 
-// Storage fallback — catches content-script writes when popup is already open
 chrome.storage.onChanged.addListener((changes) => {
   let changed = false;
-
-  if ('currentActiveEmail' in changes) {
-    currentActiveEmail = changes.currentActiveEmail.newValue || null;
-    changed = true;
-  }
-  if ('replitActive' in changes) {
-    replitActive = changes.replitActive.newValue || false;
-    changed = true;
-  }
-
+  if ('currentActiveEmail' in changes) { currentActiveEmail = changes.currentActiveEmail.newValue || null; changed = true; }
+  if ('replitActive'       in changes) { replitActive       = changes.replitActive.newValue       || false; changed = true; }
+  if ('detectedSelectors'  in changes) { renderDetected(changes.detectedSelectors.newValue || []); }
   if (changed) renderPreview();
 });
 
-// ============================================================
-// EVENTS
-// ============================================================
+// ── Events ────────────────────────────────────────────────────
 
 btnAdd.addEventListener('click', openAddModal);
 btnEmptyCta.addEventListener('click', openAddModal);
 btnClose.addEventListener('click', closeAddModal);
 btnSave.addEventListener('click', handleSave);
-
-btnCopyPreview.addEventListener('click', () => {
-  if (currentActiveEmail) copyText(currentActiveEmail, 'Copied');
-});
-
+btnCopyPreview.addEventListener('click', () => { if (currentActiveEmail) copyText(currentActiveEmail, 'Copied'); });
 btnDeleteCancel.addEventListener('click', closeDeleteModal);
 btnDeleteConfirm.addEventListener('click', confirmDelete);
-
 tabEmails.addEventListener('click',  () => switchTab('emails'));
 tabPreview.addEventListener('click', () => switchTab('preview'));
-
 modalOverlay.addEventListener('click',  e => { if (e.target === modalOverlay)  closeAddModal(); });
 deleteOverlay.addEventListener('click', e => { if (e.target === deleteOverlay) closeDeleteModal(); });
-
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    if (deleteOverlay.classList.contains('open')) closeDeleteModal();
-    else if (modalOverlay.classList.contains('open')) closeAddModal();
-  }
+  if (e.key === 'Escape') { if (deleteOverlay.classList.contains('open')) closeDeleteModal(); else if (modalOverlay.classList.contains('open')) closeAddModal(); }
   if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && modalOverlay.classList.contains('open')) handleSave();
 });
 
-// ============================================================
-// INIT
-// ============================================================
+// ── Init ──────────────────────────────────────────────────────
 
-loadState(() => {
+loadState((detectedSelectors) => {
   switchTab('emails', true);
   renderGrid();
   renderPreview();
+  renderDetected(detectedSelectors);
 });

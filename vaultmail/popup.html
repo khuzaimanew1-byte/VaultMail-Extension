@@ -8,7 +8,6 @@
 </head>
 <body>
 
-  <!-- ── Header 1: App Identity (48px) ── -->
   <header class="app-header">
     <div class="app-brand">
       <div class="app-logo">
@@ -28,7 +27,6 @@
     </button>
   </header>
 
-  <!-- ── Header 2: Workspace Bar (42px) ── -->
   <div class="workspace-bar">
     <div class="workspace-brand">
       <svg class="replit-mark" width="13" height="15" viewBox="0 0 14 16" fill="none">
@@ -45,22 +43,20 @@
     </button>
   </div>
 
-  <!-- ── Tab Bar (34px) ── -->
   <div class="tab-bar">
     <div class="segmented" id="segmented">
       <div class="seg-indicator" id="segIndicator"></div>
-      <button class="seg-btn active" id="tabEmails" data-tab="emails">Emails</button>
-      <button class="seg-btn"        id="tabPreview" data-tab="preview">
+      <button class="seg-btn active" id="tabEmails">Emails</button>
+      <button class="seg-btn"        id="tabPreview">
         <span class="seg-dot" id="segDot"></span>
         Preview
       </button>
     </div>
   </div>
 
-  <!-- ── Main Content ── -->
-  <main class="content" id="content">
+  <main class="content">
 
-    <!-- ═══ EMAILS PANEL ═══ -->
+    <!-- EMAILS PANEL -->
     <div id="panelEmails">
       <div class="stats-row" id="statsRow" style="display:none">
         <span class="stat-number" id="statCount">0</span>
@@ -79,10 +75,10 @@
       <div class="email-grid" id="emailGrid"></div>
     </div>
 
-    <!-- ═══ PREVIEW PANEL ═══ -->
+    <!-- PREVIEW PANEL -->
     <div id="panelPreview" style="display:none">
 
-      <!-- State: idle -->
+      <!-- Status cards -->
       <div class="status-card" id="stateIdle" style="display:none">
         <div class="status-dot dot-idle"></div>
         <div class="status-body">
@@ -91,7 +87,6 @@
         </div>
       </div>
 
-      <!-- State: activated -->
       <div class="status-card" id="stateActivated" style="display:none">
         <div class="status-dot dot-activated"></div>
         <div class="status-body">
@@ -100,7 +95,6 @@
         </div>
       </div>
 
-      <!-- State: active (email captured on button click) -->
       <div class="status-card status-card--active" id="stateActive" style="display:none">
         <div class="status-dot dot-active"></div>
         <div class="status-body">
@@ -115,21 +109,22 @@
         </button>
       </div>
 
-      <!-- ── DEBUG PANEL ── -->
-      <div class="debug-panel" id="debugPanel">
-        <div class="debug-title">Debug</div>
-        <div class="debug-row"><span class="debug-key">replitActive</span><span class="debug-val" id="dbgReplitActive">—</span></div>
-        <div class="debug-row"><span class="debug-key">formDetected</span><span class="debug-val" id="dbgFormDetected">—</span></div>
-        <div class="debug-row"><span class="debug-key">pendingEmail</span><span class="debug-val" id="dbgPendingEmail">—</span></div>
-        <div class="debug-row"><span class="debug-key">activeEmail</span><span class="debug-val"  id="dbgActiveEmail">—</span></div>
-        <div class="debug-row"><span class="debug-key">state</span><span class="debug-val"        id="dbgState">—</span></div>
+      <!-- Detected Selectors section -->
+      <div class="detect-section">
+        <div class="detect-header">
+          <span class="detect-label">Detected Elements</span>
+          <span class="detect-count-badge" id="detectCount">0</span>
+        </div>
+        <div id="detectList">
+          <p class="detect-empty" id="detectEmpty">No elements found on this page</p>
+        </div>
       </div>
 
     </div>
 
   </main>
 
-  <!-- ── Add Email Modal ── -->
+  <!-- Add Modal -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal-card" role="dialog" aria-modal="true">
       <div class="modal-header">
@@ -147,7 +142,7 @@
     </div>
   </div>
 
-  <!-- ── Delete Confirmation Modal ── -->
+  <!-- Delete Modal -->
   <div class="modal-overlay" id="deleteOverlay">
     <div class="modal-card modal-card--danger" role="dialog" aria-modal="true">
       <div class="modal-header">
@@ -162,9 +157,7 @@
     </div>
   </div>
 
-  <!-- ── Toast ── -->
   <div class="toast" id="toast"></div>
-
   <script src="popup.js"></script>
 </body>
 </html>
