@@ -2,7 +2,7 @@
 
 let emails             = [];
 let currentActiveEmail = null;
-let replitActive       = false;
+let captureStatus      = 'activated';
 let activeTab          = 'emails';
 let pendingDelete      = null;
 
@@ -31,26 +31,39 @@ const tabPreview       = document.getElementById('tabPreview');
 const panelEmails      = document.getElementById('panelEmails');
 const panelPreview     = document.getElementById('panelPreview');
 const previewEmail     = document.getElementById('previewEmail');
+const previewSub       = document.getElementById('previewSub');
 const deleteTarget     = document.getElementById('deleteTarget');
 
-const stateIdle        = document.getElementById('stateIdle');
 const stateActivated   = document.getElementById('stateActivated');
+const stateProcessing  = document.getElementById('stateProcessing');
 const stateActive      = document.getElementById('stateActive');
 
-const detectCount      = document.getElementById('detectCount');
-const detectList       = document.getElementById('detectList');
-const detectEmpty      = document.getElementById('detectEmpty');
+// ── Debug panel elements ───────────────────────────────────────
+
+const dbgTagName        = document.getElementById('dbgTagName');
+const dbgDetectedTarget = document.getElementById('dbgDetectedTarget');
+const dbgEmailCandidate = document.getElementById('dbgEmailCandidate');
+const dbgFormFound      = document.getElementById('dbgFormFound');
+const dbgSubmitFound    = document.getElementById('dbgSubmitFound');
+const dbgCurrentStatus  = document.getElementById('dbgCurrentStatus');
+const dbgActiveSelector = document.getElementById('dbgActiveSelector');
+
+const archInteraction   = document.getElementById('archInteraction');
+const archDomScan       = document.getElementById('archDomScan');
+const archMutObs        = document.getElementById('archMutObs');
+const archInterval      = document.getElementById('archInterval');
+const archContext       = document.getElementById('archContext');
 
 // ── Storage ───────────────────────────────────────────────────
 
 function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'currentActiveEmail', 'replitActive', 'detectedSelectors'],
+    ['vaultmail_emails', 'currentActiveEmail', 'captureStatus', 'vmDebug', 'vmArch'],
     (r) => {
-      emails             = r.vaultmail_emails    || [];
-      currentActiveEmail = r.currentActiveEmail  || null;
-      replitActive       = r.replitActive        || false;
-      cb(r.detectedSelectors || []);
+      emails             = r.vaultmail_emails   || [];
+      currentActiveEmail = r.currentActiveEmail || null;
+      captureStatus      = r.captureStatus      || 'activated';
+      cb(r.vmDebug || null, r.vmArch || null);
     }
   );
 }
@@ -99,75 +112,91 @@ function switchTab(tab, instant = false) {
 
 // ── Preview state ─────────────────────────────────────────────
 
-function currentPreviewState() {
-  if (currentActiveEmail) return 'active';
-  if (replitActive)       return 'activated';
-  return 'idle';
-}
-
 function renderPreview() {
-  const state = currentPreviewState();
-  stateIdle.style.display      = state === 'idle'      ? 'flex' : 'none';
-  stateActivated.style.display = state === 'activated' ? 'flex' : 'none';
-  stateActive.style.display    = state === 'active'    ? 'flex' : 'none';
-  if (state === 'active') previewEmail.textContent = currentActiveEmail;
+  const isActivated  = captureStatus === 'activated';
+  const isProcessing = captureStatus === 'processing';
+  const isPreviewing = captureStatus === 'previewing';
 
-  segDot.className = 'seg-dot';
-  if      (state === 'activated') segDot.classList.add('dot-activated');
-  else if (state === 'active')    segDot.classList.add('dot-active');
-  else                            segDot.classList.add('dot-idle');
-}
+  stateActivated.style.display  = isActivated  ? 'flex' : 'none';
+  stateProcessing.style.display = isProcessing ? 'flex' : 'none';
+  stateActive.style.display     = isPreviewing ? 'flex' : 'none';
 
-// ── Selector detection cards ──────────────────────────────────
-
-function renderDetected(selectors) {
-  detectCount.textContent = selectors.length;
-
-  // Remove old cards (keep detectEmpty)
-  [...detectList.querySelectorAll('.detect-card')].forEach(c => c.remove());
-
-  if (!selectors.length) {
-    detectEmpty.style.display = 'block';
-    return;
+  if (isPreviewing && currentActiveEmail) {
+    previewEmail.textContent     = currentActiveEmail;
+    previewEmail.style.display   = 'block';
+    previewSub.style.display     = 'none';
+    btnCopyPreview.style.display = 'flex';
+  } else {
+    previewEmail.style.display   = 'none';
+    previewSub.style.display     = 'block';
+    btnCopyPreview.style.display = 'none';
   }
 
-  detectEmpty.style.display = 'none';
+  segDot.className = 'seg-dot';
+  if      (isProcessing) segDot.classList.add('dot-processing');
+  else if (isPreviewing) segDot.classList.add('dot-active');
+  else                   segDot.classList.add('dot-activated');
+}
 
-  selectors.forEach(s => {
-    const card = document.createElement('div');
-    card.className = 'detect-card detect-card--' + s.kind;
+// ── Testing panel ─────────────────────────────────────────────
 
-    // Icon
-    const icon = s.kind === 'input'
-      ? `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-           <rect x="1" y="2" width="8" height="6.5" rx="1.3" stroke="currentColor" stroke-width="1.1"/>
-           <path d="M1 3.5L5 6.2L9 3.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-         </svg>`
-      : `<svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-           <rect x="1" y="1" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.1"/>
-           <path d="M3.5 5H6.5M5 3.5V6.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>
-         </svg>`;
+function yn(val) {
+  if (val === null || val === undefined || val === '—') return '—';
+  return val ? 'YES' : 'NO';
+}
 
-    // Build detail line
-    const parts = [];
-    if (s.id)   parts.push(`id="${s.id}"`);
-    if (s.name) parts.push(`name="${s.name}"`);
-    if (s.type && s.type !== 'text') parts.push(`type="${s.type}"`);
-    if (s.aria) parts.push(`aria-label="${s.aria}"`);
-    if (s.text && !s.aria && s.kind === 'button') parts.push(`"${s.text}"`);
-    const detail = parts.join('  ·  ') || s.tagName;
+function activeInactive(val) {
+  return val ? 'ACTIVE' : 'INACTIVE';
+}
 
-    card.innerHTML = `
-      <div class="dc-icon dc-icon--${s.kind}">${icon}</div>
-      <div class="dc-body">
-        <p class="dc-sel">${s.sel}</p>
-        <p class="dc-detail">${detail}</p>
-      </div>
-      <div class="dc-badge dc-badge--${s.kind}">${s.kind === 'input' ? 'INPUT' : 'BTN'}</div>
-    `;
+function yesNo(val) {
+  return val ? 'YES' : 'NO';
+}
 
-    detectList.appendChild(card);
-  });
+function applyClass(el, val) {
+  el.className = 'test-val';
+  if (val === 'YES' || val === 'ACTIVE' || val === 'NO' && el === archDomScan || val === 'NO' && el === archMutObs || val === 'NO' && el === archInterval) {
+    el.classList.add(val === 'YES' || val === 'ACTIVE' ? 'val-yes' : 'val-no');
+  } else if (val === 'NO') {
+    el.classList.add('val-no');
+  } else if (val === 'INACTIVE') {
+    el.classList.add('val-inactive');
+  }
+  if (el === dbgActiveSelector) el.classList.add('test-val--mono');
+}
+
+function renderDebug(d) {
+  if (!d) return;
+
+  const fields = {
+    [dbgTagName]:        d.tagName        || '—',
+    [dbgDetectedTarget]: yn(d.detectedTarget),
+    [dbgEmailCandidate]: yn(d.emailCandidate),
+    [dbgFormFound]:      yn(d.formFound),
+    [dbgSubmitFound]:    yn(d.submitFound),
+    [dbgCurrentStatus]:  d.currentStatus  || '—',
+    [dbgActiveSelector]: d.activeSelector || '—',
+  };
+
+  for (const [el, val] of Object.entries(fields)) {
+    el.textContent = val;
+    applyClass(el, val);
+  }
+
+  archContext.textContent = d.contextLocked ? 'ACTIVE' : 'INACTIVE';
+  applyClass(archContext, d.contextLocked ? 'ACTIVE' : 'INACTIVE');
+}
+
+function renderArch(a) {
+  if (!a) return;
+  archInteraction.textContent = activeInactive(a.interactionListener);
+  applyClass(archInteraction, a.interactionListener ? 'ACTIVE' : 'INACTIVE');
+  archDomScan.textContent = yesNo(a.continuousDomScan);
+  applyClass(archDomScan, a.continuousDomScan ? 'YES' : 'NO');
+  archMutObs.textContent = yesNo(a.mutationObserver);
+  applyClass(archMutObs, a.mutationObserver ? 'YES' : 'NO');
+  archInterval.textContent = yesNo(a.intervalScanner);
+  applyClass(archInterval, a.intervalScanner ? 'YES' : 'NO');
 }
 
 // ── Email grid ────────────────────────────────────────────────
@@ -204,7 +233,7 @@ function createCard(email, index) {
       </button>
       <button class="btn-icon btn-delete" aria-label="Delete">
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-          <path d="M1 2.5H9M3 2.5V1.8C3 1.4 3.4 1 3.8 1H6.2C6.6 1 7 1.4 7 1.8V2.5M4 4.5V7.5M6 4.5V7.5M2 2.5L2.5 8.2C2.5 8.6 2.8 9 3.2 9H6.8C7.2 9 7.5 8.6 7.5 8.2L8 2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M1 2.5H9M3 2.5V1.8C3 1.4 3.4 1 3.8 1H6.2C6.6 1 7 1.4 7 1.8V2.5M4 4.5V7.5M6 4.5V7.5M2 2.5L2.5 8.2C2.5 8.6 2.8 9 3 9H7C7.2 9 7.5 8.6 7.5 8.2L8 2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
       </button>
     </div>`;
@@ -264,26 +293,27 @@ function showToast(msg) {
 // ── Messages ──────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message) => {
+  if (message.type === 'STATUS_CHANGED') {
+    captureStatus = message.status || 'activated';
+    if (captureStatus === 'activated') currentActiveEmail = null;
+    renderPreview();
+  }
   if (message.type === 'ACTIVE_EMAIL_UPDATED') {
     currentActiveEmail = message.email || null;
     renderPreview();
   }
-  if (message.type === 'REPLIT_STATUS_CHANGED') {
-    replitActive = message.active;
-    if (!message.active) { currentActiveEmail = null; chrome.storage.local.set({ currentActiveEmail: null }); }
-    renderPreview();
-  }
-  if (message.type === 'SELECTORS_UPDATED') {
-    renderDetected(message.selectors || []);
+  if (message.type === 'DEBUG_UPDATED') {
+    renderDebug(message.debug);
   }
 });
 
 chrome.storage.onChanged.addListener((changes) => {
-  let changed = false;
-  if ('currentActiveEmail' in changes) { currentActiveEmail = changes.currentActiveEmail.newValue || null; changed = true; }
-  if ('replitActive'       in changes) { replitActive       = changes.replitActive.newValue       || false; changed = true; }
-  if ('detectedSelectors'  in changes) { renderDetected(changes.detectedSelectors.newValue || []); }
-  if (changed) renderPreview();
+  let previewChanged = false;
+  if ('captureStatus'      in changes) { captureStatus      = changes.captureStatus.newValue      || 'activated'; previewChanged = true; }
+  if ('currentActiveEmail' in changes) { currentActiveEmail = changes.currentActiveEmail.newValue || null;        previewChanged = true; }
+  if (previewChanged) renderPreview();
+  if ('vmDebug' in changes) renderDebug(changes.vmDebug.newValue);
+  if ('vmArch'  in changes) renderArch(changes.vmArch.newValue);
 });
 
 // ── Events ────────────────────────────────────────────────────
@@ -306,9 +336,10 @@ document.addEventListener('keydown', e => {
 
 // ── Init ──────────────────────────────────────────────────────
 
-loadState((detectedSelectors) => {
+loadState((debug, arch) => {
   switchTab('emails', true);
   renderGrid();
   renderPreview();
-  renderDetected(detectedSelectors);
+  if (debug) renderDebug(debug);
+  if (arch)  renderArch(arch);
 });
