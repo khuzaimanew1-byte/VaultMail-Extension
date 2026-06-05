@@ -3,8 +3,9 @@
 // ── State ─────────────────────────────────────────────────────
 
 let emails            = [];
+let replitActive      = false;       // true when at least one replit.com tab is open
 let previewStatus     = 'activated'; // 'activated' | 'processing' | 'active'
-let currentFieldEmail = null;        // live email in the active input (not persisted across reopens)
+let currentFieldEmail = null;        // live email in the active input
 let capturedEmail     = null;        // last successfully submitted email (persisted)
 let activeTab         = 'emails';
 let pendingDelete     = null;
@@ -49,12 +50,13 @@ const detectEmpty = document.getElementById('detectEmpty');
 
 function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'capturedEmail', 'previewStatus', 'currentFieldEmail', 'detectedSelectors'],
+    ['vaultmail_emails', 'capturedEmail', 'previewStatus', 'currentFieldEmail', 'replitActive', 'detectedSelectors'],
     (r) => {
       emails            = r.vaultmail_emails  || [];
       capturedEmail     = r.capturedEmail     || null;
       previewStatus     = r.previewStatus     || 'activated';
       currentFieldEmail = r.currentFieldEmail || null;
+      replitActive      = r.replitActive      || false;
       cb(r.detectedSelectors || []);
     }
   );
@@ -105,6 +107,12 @@ function switchTab(tab, instant = false) {
 // ── Preview rendering ─────────────────────────────────────────
 
 const STATUS_CONFIG = {
+  idle: {
+    title:     'Idle',
+    desc:      'No usable website context',
+    dot:       'dot-activated',
+    cardClass: '',
+  },
   activated: {
     title:     'Extension Activated',
     desc:      'Waiting for email interaction',
@@ -125,19 +133,30 @@ const STATUS_CONFIG = {
 };
 
 function renderPreview() {
-  const cfg = STATUS_CONFIG[previewStatus] || STATUS_CONFIG.activated;
+  // Idle overrides everything when no Replit tab is open
+  const displayState = !replitActive ? 'idle' : (previewStatus || 'activated');
+  const cfg = STATUS_CONFIG[displayState] || STATUS_CONFIG.activated;
 
   pvTitle.textContent = cfg.title;
-  pvDesc.textContent  = previewStatus === 'active' ? (capturedEmail || '') : cfg.desc;
+
+  if (displayState === 'active') {
+    // Previewing Account: description IS the captured email
+    pvDesc.textContent = capturedEmail || '';
+  } else if (displayState === 'idle' && capturedEmail) {
+    // Idle after having captured: show last captured email instead of default description
+    pvDesc.textContent = capturedEmail;
+  } else {
+    pvDesc.textContent = cfg.desc || '';
+  }
 
   pvDot.className        = 'pv-dot ' + cfg.dot;
   pvStatusCard.className = 'pv-status-card ' + cfg.cardClass;
 
   // Seg dot
   segDot.className = 'seg-dot';
-  if      (previewStatus === 'processing') segDot.classList.add('dot-processing');
-  else if (previewStatus === 'active')     segDot.classList.add('dot-active');
-  else                                     segDot.classList.add('dot-activated');
+  if      (displayState === 'processing') segDot.classList.add('dot-processing');
+  else if (displayState === 'active')     segDot.classList.add('dot-active');
+  else                                    segDot.classList.add('dot-activated');
 }
 
 // ── Selector detection cards ──────────────────────────────────
@@ -295,6 +314,11 @@ chrome.runtime.onMessage.addListener((message) => {
       renderPreview();
       break;
 
+    case 'REPLIT_STATUS_CHANGED':
+      replitActive = message.active || false;
+      renderPreview();
+      break;
+
     case 'SELECTORS_UPDATED':
       renderDetected(message.selectors || []);
       break;
@@ -305,9 +329,10 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.storage.onChanged.addListener((changes) => {
   let changed = false;
-  if ('capturedEmail'     in changes) { capturedEmail     = changes.capturedEmail.newValue     || null;         changed = true; }
-  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated';  changed = true; }
-  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;         changed = true; }
+  if ('capturedEmail'     in changes) { capturedEmail     = changes.capturedEmail.newValue     || null;        changed = true; }
+  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated'; changed = true; }
+  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;        changed = true; }
+  if ('replitActive'      in changes) { replitActive      = changes.replitActive.newValue      || false;       changed = true; }
   if ('detectedSelectors' in changes) { renderDetected(changes.detectedSelectors.newValue || []); }
   if (changed) renderPreview();
 });
