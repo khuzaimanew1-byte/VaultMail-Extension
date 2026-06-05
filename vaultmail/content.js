@@ -4,31 +4,26 @@
 // CONTENT SCRIPT — https://replit.com/*
 //
 // Architecture: interaction-first
-//   - INTERACTION_LISTENER: ACTIVE (focusin + click on document)
-//   - CONTINUOUS_DOM_SCAN:  NO
-//   - MUTATION_OBSERVER:    NO
-//   - INTERVAL_SCANNER:     NO
-//   - CONTEXT_LOCKING:      active once email+form+button found
+//   - No continuous DOM scanning
+//   - No MutationObserver for capture logic
+//   - Only activates when user interacts with an email input
+//   - Locks context (email + form + submit button) on first touch
 // ============================================================
 
 // ── Email input candidates ────────────────────────────────────
-// Ordered by specificity. Only these patterns are supported.
 
-const EMAIL_CANDIDATES = [
-  { sel: 'input[autocomplete="email"]',              label: 'input[autocomplete="email"]' },
-  { sel: 'input[name="email"]',                      label: 'input[name="email"]' },
-  { sel: 'input[name="username"][autocomplete="email"]', label: 'input[name="username"][autocomplete="email"]' },
-  // Fallback: any username field (wider net for forms without autocomplete attr)
-  { sel: 'input[name="username"]',                   label: 'input[name="username"]' },
+const EMAIL_INPUT_SELS = [
+  'input[autocomplete="email"]',
+  'input[name="email"]',
+  'input[name="username"]',
 ];
 
 // ── Locked capture context ────────────────────────────────────
 
-let activeEmailInput   = null;
-let activeForm         = null;
-let activeSubmitBtn    = null;
-let contextLocked      = false;
-let activeSelector     = '-';
+let activeEmailInput  = null;
+let activeForm        = null;
+let activeSubmitBtn   = null;
+let contextLocked     = false;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -38,14 +33,9 @@ function send(type, extra = {}) {
 
 function saveEmail(email) {
   if (!email) return;
-  chrome.storage.local.set({ currentActiveEmail: email });
-  send('ACTIVE_EMAIL_UPDATED', { email });
-}
-
-function setStatus(status) {
-  chrome.storage.local.set({ captureStatus: status });
-  send('STATUS_CHANGED', { status });
-  writeDebug({ statusOverride: status });
+  chrome.storage.local.set({ currentActiveEmail: email }, () => {
+    send('ACTIVE_EMAIL_UPDATED', { email });
+  });
 }
 
 function isPasswordToggle(btn) {
@@ -53,6 +43,8 @@ function isPasswordToggle(btn) {
   return label.includes('show password') || label.includes('hide password');
 }
 
+// Find the submit button strictly inside the given form.
+// Ignores type="button" and password-toggle buttons.
 function findSubmitInForm(form) {
   if (!form) return null;
   const candidates = form.querySelectorAll('button[type="submit"], input[type="submit"]');
@@ -62,42 +54,31 @@ function findSubmitInForm(form) {
   return null;
 }
 
-// ── Debug writer — persists state for testing panel ──────────
+// ── Re-resolve context if DOM was re-rendered ─────────────────
 
-function writeDebug(patch = {}) {
-  const info = {
-    tagName:      patch.tagName      !== undefined ? patch.tagName      : '-',
-    detectedTarget: patch.detectedTarget !== undefined ? patch.detectedTarget : false,
-    emailCandidate: patch.emailCandidate !== undefined ? patch.emailCandidate : false,
-    formFound:    patch.formFound    !== undefined ? patch.formFound    : false,
-    submitFound:  patch.submitFound  !== undefined ? patch.submitFound  : false,
-    activeSelector: patch.activeSelector || activeSelector,
-    contextLocked:  patch.contextLocked  !== undefined ? patch.contextLocked  : contextLocked,
-    currentStatus:  patch.statusOverride || (
-      contextLocked && activeSubmitBtn ? 'previewing' :
-      contextLocked ? 'processing' : 'activated'
-    ),
-    ts: Date.now(),
-  };
-  chrome.storage.local.set({ vmDebug: info });
-  send('DEBUG_UPDATED', { debug: info });
+function ensureContextValid() {
+  if (!activeEmailInput || !document.contains(activeEmailInput)) {
+    resetContext();
+    return false;
+  }
+  if (!activeSubmitBtn || !document.contains(activeSubmitBtn)) {
+    activeForm      = activeEmailInput.form || activeEmailInput.closest('form');
+    activeSubmitBtn = findSubmitInForm(activeForm);
+    if (!activeSubmitBtn) return false;
+    attachSubmitListener();
+  }
+  return true;
 }
 
 // ── Submit button click handler ───────────────────────────────
 
 function onSubmitClicked() {
-  console.log('[VaultMail] Submit clicked');
-  if (!activeEmailInput || !document.contains(activeEmailInput)) {
-    console.log('[VaultMail] Email input gone — resetting');
-    resetContext();
-    return;
-  }
+  if (!ensureContextValid()) return;
   const val = activeEmailInput.value.trim().toLowerCase();
-  console.log('[VaultMail] Capturing email:', val || '(empty)');
   if (val) saveEmail(val);
 }
 
-// ── Attach listeners to activeSubmitBtn ───────────────────────
+// ── Attach listener to current activeSubmitBtn ────────────────
 
 function attachSubmitListener() {
   if (!activeSubmitBtn) return;
@@ -105,149 +86,67 @@ function attachSubmitListener() {
   activeSubmitBtn.addEventListener('click',     onSubmitClicked, { capture: true });
 }
 
-// ── Try to upgrade from processing → previewing ───────────────
+// ── Reset context (called on navigation) ─────────────────────
 
-function tryUpgradeToPreview() {
-  if (!activeEmailInput || !document.contains(activeEmailInput)) {
-    resetContext();
-    return;
-  }
-  activeForm      = activeEmailInput.form || activeEmailInput.closest('form');
-  activeSubmitBtn = findSubmitInForm(activeForm);
-  const submitFound = !!activeSubmitBtn;
-  console.log('[VaultMail] Upgrade attempt — submit found:', submitFound);
-  if (activeSubmitBtn) {
-    attachSubmitListener();
-    setStatus('previewing');
-  }
-  writeDebug({
-    formFound:   !!activeForm,
-    submitFound,
-  });
-}
-
-// ── Re-verify context hasn't been destroyed by React rerender ─
-
-function ensureContextValid() {
-  if (!activeEmailInput || !document.contains(activeEmailInput)) {
-    resetContext();
-    return;
-  }
-  if (!activeSubmitBtn || !document.contains(activeSubmitBtn)) {
-    activeForm      = activeEmailInput.form || activeEmailInput.closest('form');
-    activeSubmitBtn = findSubmitInForm(activeForm);
-    if (activeSubmitBtn) attachSubmitListener();
-  }
+function resetContext() {
+  activeEmailInput = null;
+  activeForm       = null;
+  activeSubmitBtn  = null;
+  contextLocked    = false;
 }
 
 // ── Lock context on first email input interaction ─────────────
 
-function lockContext(emailInput, selector) {
-  console.log('[VaultMail] Context locked — selector:', selector);
-  activeSelector   = selector;
+function lockContext(emailInput) {
+  if (contextLocked) return;
   contextLocked    = true;
   activeEmailInput = emailInput;
   activeForm       = emailInput.form || emailInput.closest('form');
   activeSubmitBtn  = findSubmitInForm(activeForm);
 
-  const formFound   = !!activeForm;
-  const submitFound = !!activeSubmitBtn;
-
-  console.log('[VaultMail] Form found:', formFound, '| Submit found:', submitFound);
-
-  writeDebug({
-    emailCandidate: true,
-    formFound,
-    submitFound,
-    activeSelector: selector,
-    contextLocked: true,
-  });
-
   if (activeSubmitBtn) {
     attachSubmitListener();
-    setStatus('previewing');
-  } else {
-    setStatus('processing');
   }
 
+  // Also capture on Enter key inside the email field
   emailInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') onSubmitClicked();
   });
 
+  // Also capture on form submit event
   if (activeForm) {
     activeForm.addEventListener('submit', onSubmitClicked, { capture: true });
   }
 }
 
-// ── Reset all context ─────────────────────────────────────────
-
-function resetContext() {
-  console.log('[VaultMail] Context reset');
-  activeEmailInput = null;
-  activeForm       = null;
-  activeSubmitBtn  = null;
-  contextLocked    = false;
-  activeSelector   = '-';
-  setStatus('activated');
-}
-
-// ── Core interaction handler ──────────────────────────────────
+// ── Interaction listener ──────────────────────────────────────
+// Delegated on document — catches focus/input on any email candidate
+// without needing to scan the DOM upfront.
 
 function onEmailInteraction(e) {
-  const target = e.target;
-
-  // Log every interaction for debug
-  const tagName = target ? target.tagName : 'null';
-  console.log('[VaultMail] Interaction:', e.type, tagName);
-
-  if (!target || target.tagName !== 'INPUT') {
-    writeDebug({ tagName, detectedTarget: false });
+  if (contextLocked) {
+    ensureContextValid();
     return;
   }
+  const target = e.target;
+  if (!target || target.tagName !== 'INPUT') return;
 
-  writeDebug({ tagName, detectedTarget: true });
-
-  // Check each candidate selector
-  let matchedSel = null;
-  for (const { sel, label } of EMAIL_CANDIDATES) {
+  for (const sel of EMAIL_INPUT_SELS) {
     try {
-      if (target.matches(sel)) { matchedSel = label; break; }
+      if (target.matches(sel)) {
+        lockContext(target);
+        return;
+      }
     } catch (_) {}
   }
-
-  if (!matchedSel) {
-    console.log('[VaultMail] Not an email candidate:', target.name, target.autocomplete, target.type);
-    writeDebug({ tagName, detectedTarget: true, emailCandidate: false });
-    return;
-  }
-
-  console.log('[VaultMail] Email candidate matched:', matchedSel);
-
-  if (contextLocked) {
-    if (target !== activeEmailInput) {
-      console.log('[VaultMail] Different email field — re-locking');
-      resetContext();
-      lockContext(target, matchedSel);
-    } else if (!activeSubmitBtn) {
-      tryUpgradeToPreview();
-    } else {
-      ensureContextValid();
-    }
-    return;
-  }
-
-  lockContext(target, matchedSel);
 }
 
-// Three event types to maximize chance of catching interaction
 document.addEventListener('focusin', onEmailInteraction, { capture: true });
-document.addEventListener('click',   onEmailInteraction, { capture: true });
 document.addEventListener('input',   onEmailInteraction, { capture: true });
 
-// ── SPA navigation ────────────────────────────────────────────
+// ── SPA navigation — reset on route change ────────────────────
 
 function onNavigate() {
-  console.log('[VaultMail] SPA navigation — resetting');
   resetContext();
 }
 
@@ -260,17 +159,66 @@ function onNavigate() {
 
 window.addEventListener('popstate', () => setTimeout(onNavigate, 80));
 
-// ── Init ──────────────────────────────────────────────────────
+// ── Selector detection (UI display only, separate from capture) ──
+// Lightweight scan used only to populate the "Detected Elements"
+// panel in the popup. Does NOT drive capture logic.
 
-console.log('[VaultMail] Content script loaded');
+const PROBE_SELECTORS = [
+  { sel: 'input[name="identifier"]',         kind: 'input', label: 'identifier' },
+  { sel: 'input[name="email"]',              kind: 'input', label: 'name=email' },
+  { sel: 'input[name="username"]',           kind: 'input', label: 'name=username' },
+  { sel: 'input[type="email"]',              kind: 'input', label: 'type=email' },
+  { sel: 'input[autocomplete="email"]',      kind: 'input', label: 'autocomplete=email' },
+  { sel: 'input[autocomplete="username"]',   kind: 'input', label: 'autocomplete=username' },
+  { sel: 'input[placeholder*="email" i]',    kind: 'input', label: 'placeholder~email' },
+  { sel: 'input[placeholder*="username" i]', kind: 'input', label: 'placeholder~username' },
+  { sel: '[id^="username-"]',               kind: 'input', label: 'id^=username-' },
+  { sel: '[id^="email-"]',                  kind: 'input', label: 'id^=email-' },
+  { sel: 'button[type="submit"]',            kind: 'button', label: 'submit button' },
+  { sel: 'input[type="submit"]',             kind: 'button', label: 'input[submit]' },
+  { sel: '[id^="react-aria"]',              kind: 'button', label: 'id^=react-aria' },
+  { sel: 'button[aria-label*="continue" i]', kind: 'button', label: 'aria~continue' },
+  { sel: 'button[aria-label*="next" i]',     kind: 'button', label: 'aria~next' },
+  { sel: 'button[aria-label*="sign" i]',     kind: 'button', label: 'aria~sign' },
+];
 
-// Report architecture state
-const ARCH = {
-  interactionListener: true,
-  continuousDomScan:   false,
-  mutationObserver:    false,
-  intervalScanner:     false,
-};
-chrome.storage.local.set({ vmArch: ARCH });
+let scanThrottle = null;
 
-setStatus('activated');
+function scanSelectors() {
+  const found = [];
+  for (const probe of PROBE_SELECTORS) {
+    try {
+      const els = [...document.querySelectorAll(probe.sel)];
+      for (const el of els) {
+        found.push({
+          sel:     probe.sel,
+          label:   probe.label,
+          kind:    probe.kind,
+          tagName: el.tagName,
+          id:      el.id    || '',
+          name:    el.name  || '',
+          type:    el.type  || '',
+          aria:    el.getAttribute('aria-label') || '',
+          text:    el.textContent.trim().slice(0, 40),
+        });
+      }
+    } catch (_) {}
+  }
+  chrome.storage.local.set({ detectedSelectors: found }, () => {
+    send('SELECTORS_UPDATED', { selectors: found });
+  });
+}
+
+function scheduleScan() {
+  clearTimeout(scanThrottle);
+  scanThrottle = setTimeout(scanSelectors, 200);
+}
+
+// MutationObserver only for the detection panel — not for capture
+const observer = new MutationObserver(scheduleScan);
+observer.observe(document.documentElement, { childList: true, subtree: true });
+
+// Initial scan
+scanSelectors();
+setTimeout(scanSelectors, 1000);
+setTimeout(scanSelectors, 3000);
