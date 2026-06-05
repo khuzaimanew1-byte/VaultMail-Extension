@@ -1,0 +1,242 @@
+CRITICAL BUG FIX — PREVIEW TAB NEVER REACHES ACTIVE STATE
+
+Current implementation is incorrect.
+
+Do NOT rely on page-specific URLs like:
+
+/login
+
+or any hardcoded login route.
+
+Reason:
+
+Replit frequently changes routes and authentication flows.
+
+The extension must work purely from the selectors I provide.
+
+========================================
+ROOT CAUSE ANALYSIS
+===================
+
+The current logic appears to depend on:
+
+formDetected = URL.includes('/login')
+
+This is wrong.
+
+If Replit changes the login URL or uses a modal/auth flow, Preview state never progresses correctly.
+
+As a result:
+
+* Preview tab remains stuck
+* Processing state never resolves
+* Active email never gets assigned
+
+========================================
+CORRECT DETECTION STRATEGY
+==========================
+
+Forget URL detection for login.
+
+Use selector detection only.
+
+Email input selector:
+
+#username-:rv:
+
+Submit button selector:
+
+#react-aria1080582148-:r1c:
+
+If these selectors exist:
+
+formDetected = true
+
+If these selectors do NOT exist:
+
+formDetected = false
+
+Example:
+
+const emailInput = document.querySelector(
+'#username-\:rv\:'
+);
+
+const submitBtn = document.querySelector(
+'#react-aria1080582148-\:r1c\:'
+);
+
+formDetected = !!(emailInput && submitBtn);
+
+========================================
+PENDING EMAIL SYSTEM
+====================
+
+While the email field exists:
+
+Listen for input events.
+
+Every keystroke:
+
+chrome.storage.local.set({
+pendingEmail: emailInput.value
+});
+
+Do NOT wait for submit.
+
+Do NOT wait for redirect.
+
+Always keep latest email saved.
+
+========================================
+SUBMIT BUTTON DETECTION
+=======================
+
+When submit button is clicked:
+
+1. Read pendingEmail
+2. Save timestamp
+3. Set loginInProgress = true
+
+Example:
+
+{
+pendingEmail,
+loginInProgress: true
+}
+
+========================================
+SUCCESS DETECTION
+=================
+
+After submit:
+
+Observe navigation changes.
+
+If URL starts with:
+
+https://replit.com/~
+
+Then:
+
+currentActiveEmail = pendingEmail
+
+pendingEmail = null
+
+loginInProgress = false
+
+Save immediately.
+
+========================================
+ACTIVE ACCOUNT STATE
+====================
+
+When redirect reaches:
+
+https://replit.com/~*
+
+The account is considered active.
+
+Do not require any other condition.
+
+========================================
+PREVIEW TAB STATE ENGINE
+========================
+
+Use exactly:
+
+function currentPreviewState() {
+
+if (currentActiveEmail && !formDetected)
+return 'active';
+
+if (formDetected)
+return 'processing';
+
+if (replitActive)
+return 'activated';
+
+return 'idle';
+}
+
+========================================
+STATE SOURCES
+=============
+
+replitActive
+
+TRUE when ANY tab URL begins with:
+
+https://replit.com/
+
+No page-specific matching.
+
+========================================
+
+formDetected
+
+TRUE when BOTH selectors exist:
+
+#username-:rv:
+#react-aria1080582148-:r1c:
+
+FALSE otherwise.
+
+========================================
+
+currentActiveEmail
+
+Set ONLY after:
+
+URL begins with:
+
+https://replit.com/~
+
+AND pendingEmail exists.
+
+========================================
+MUTATION OBSERVER
+=================
+
+Do NOT check selectors only once.
+
+Use MutationObserver.
+
+Replit is a React SPA.
+
+Selectors may appear after page load.
+
+Continuously monitor DOM changes.
+
+Recalculate:
+
+formDetected
+
+whenever DOM updates.
+
+========================================
+DEBUG PANEL
+===========
+
+Add temporary debug info inside Preview tab.
+
+Show:
+
+replitActive:
+true/false
+
+formDetected:
+true/false
+
+pendingEmail:
+value
+
+currentActiveEmail:
+value
+
+currentState:
+active/processing/activated/idle
+
+This will immediately reveal which condition is failing.
+
+Remove debug panel after verification.

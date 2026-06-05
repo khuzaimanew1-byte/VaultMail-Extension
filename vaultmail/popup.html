@@ -82,7 +82,7 @@
     <!-- ═══ PREVIEW PANEL ═══ -->
     <div id="panelPreview" style="display:none">
 
-      <!-- State 1: idle — no Replit tab -->
+      <!-- State: idle -->
       <div class="status-card" id="stateIdle" style="display:none">
         <div class="status-dot dot-idle"></div>
         <div class="status-body">
@@ -91,7 +91,7 @@
         </div>
       </div>
 
-      <!-- State 2: activated — Replit open, no form yet -->
+      <!-- State: activated -->
       <div class="status-card" id="stateActivated" style="display:none">
         <div class="status-dot dot-activated"></div>
         <div class="status-body">
@@ -100,17 +100,17 @@
         </div>
       </div>
 
-      <!-- State 3: processing — login form detected / email submitted -->
+      <!-- State: processing -->
       <div class="status-card status-card--processing" id="stateProcessing" style="display:none">
         <div class="status-dot dot-processing"></div>
         <div class="status-body">
           <p class="status-title">Processing Login</p>
-          <p class="status-sub">Email form detected — waiting for sign-in</p>
+          <p class="status-sub">Login form detected — waiting for sign-in</p>
         </div>
         <div class="spinner"></div>
       </div>
 
-      <!-- State 4: active — login complete, email captured -->
+      <!-- State: active -->
       <div class="status-card status-card--active" id="stateActive" style="display:none">
         <div class="status-dot dot-active"></div>
         <div class="status-body">
@@ -123,6 +123,16 @@
             <path d="M3 3.5H2.5A1.3 1.3 0 0 0 1.2 4.8V9.5C1.2 10.2 1.7 10.8 2.5 10.8H7C7.7 10.8 8.2 10.2 8.2 9.5V9.2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
           </svg>
         </button>
+      </div>
+
+      <!-- ── DEBUG PANEL ── -->
+      <div class="debug-panel" id="debugPanel">
+        <div class="debug-title">Debug</div>
+        <div class="debug-row"><span class="debug-key">replitActive</span><span class="debug-val" id="dbgReplitActive">—</span></div>
+        <div class="debug-row"><span class="debug-key">formDetected</span><span class="debug-val" id="dbgFormDetected">—</span></div>
+        <div class="debug-row"><span class="debug-key">pendingEmail</span><span class="debug-val" id="dbgPendingEmail">—</span></div>
+        <div class="debug-row"><span class="debug-key">activeEmail</span><span class="debug-val" id="dbgActiveEmail">—</span></div>
+        <div class="debug-row"><span class="debug-key">state</span><span class="debug-val" id="dbgState">—</span></div>
       </div>
 
     </div>
