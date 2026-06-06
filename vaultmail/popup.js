@@ -4,9 +4,8 @@
 
 let emails            = [];
 let previewStatus     = 'activated'; // 'activated' | 'processing' | 'active'
-let currentFieldEmail = null;
+let currentFieldEmail = null;        // live email in the active input (not persisted across reopens)
 let capturedEmail     = null;        // last successfully submitted email (persisted)
-let replitActive      = false;       // true when at least one Replit tab is open
 let activeTab         = 'emails';
 let pendingDelete     = null;
 
@@ -126,21 +125,18 @@ const STATUS_CONFIG = {
 };
 
 function renderPreview() {
-  // When no Replit tab is open, show Idle state regardless of previewStatus
-  const displayStatus = (!replitActive && previewStatus !== 'active') ? 'activated' : previewStatus;
-
-  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.activated;
+  const cfg = STATUS_CONFIG[previewStatus] || STATUS_CONFIG.activated;
 
   pvTitle.textContent = cfg.title;
-  pvDesc.textContent  = displayStatus === 'active' ? (capturedEmail || '') : cfg.desc;
+  pvDesc.textContent  = previewStatus === 'active' ? (capturedEmail || '') : cfg.desc;
 
   pvDot.className        = 'pv-dot ' + cfg.dot;
   pvStatusCard.className = 'pv-status-card ' + cfg.cardClass;
 
   // Seg dot
   segDot.className = 'seg-dot';
-  if      (displayStatus === 'processing') segDot.classList.add('dot-processing');
-  else if (displayStatus === 'active')     segDot.classList.add('dot-active');
+  if      (previewStatus === 'processing') segDot.classList.add('dot-processing');
+  else if (previewStatus === 'active')     segDot.classList.add('dot-active');
   else                                     segDot.classList.add('dot-activated');
 }
 
@@ -299,11 +295,6 @@ chrome.runtime.onMessage.addListener((message) => {
       renderPreview();
       break;
 
-    case 'REPLIT_STATUS_CHANGED':
-      replitActive = !!message.active;
-      renderPreview();
-      break;
-
     case 'SELECTORS_UPDATED':
       renderDetected(message.selectors || []);
       break;
@@ -314,14 +305,9 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.storage.onChanged.addListener((changes) => {
   let changed = false;
-  if ('capturedEmail'     in changes) {
-    // Apply TTL: if new value has expired, treat as null
-    const newVal = changes.capturedEmail.newValue || null;
-    capturedEmail = newVal;
-    changed = true;
-  }
-  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated'; changed = true; }
-  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;        changed = true; }
+  if ('capturedEmail'     in changes) { capturedEmail     = changes.capturedEmail.newValue     || null;         changed = true; }
+  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated';  changed = true; }
+  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;         changed = true; }
   if ('detectedSelectors' in changes) { renderDetected(changes.detectedSelectors.newValue || []); }
   if (changed) renderPreview();
 });
