@@ -92,18 +92,36 @@ function makeSubmitHandler(gen) {
 }
 
 // ── Lock context on first email input interaction ─────────────
+//
+// Spec requirements:
+//   1. Resolve form from the interacted element only.
+//   2. Find submit button strictly inside that form.
+//   3. All three (emailInput + form + submitBtn) must exist.
+//   4. If any is missing → do NOT lock; return to activated.
+//   5. Different email field → immediately discard old context, build new.
 
 function lockContext(emailInput) {
   // Same input already locked — nothing to do
   if (contextLocked && activeEmailInput === emailInput) return;
 
-  // New context: increment generation to invalidate all prior handlers
+  // Resolve requirements BEFORE touching any state
+  const form      = emailInput.form || emailInput.closest('form');
+  const submitBtn = findSubmitInForm(form);
+
+  // All three required: emailInput + parent form + submit button
+  // If any is missing → do not lock; return to Extension Activated
+  if (!form || !submitBtn) {
+    resetContext();
+    return;
+  }
+
+  // Valid context: increment generation to invalidate all prior handlers
   contextGeneration++;
   const gen = contextGeneration;
 
   activeEmailInput = emailInput;
-  activeForm       = emailInput.form || emailInput.closest('form');
-  activeSubmitBtn  = findSubmitInForm(activeForm);
+  activeForm       = form;
+  activeSubmitBtn  = submitBtn;
   contextLocked    = true;
 
   const initialVal = emailInput.value.trim();
@@ -117,10 +135,9 @@ function lockContext(emailInput) {
 
   const submitHandler = makeSubmitHandler(gen);
 
-  if (activeSubmitBtn) {
-    activeSubmitBtn.addEventListener('mousedown', submitHandler, { capture: true });
-    activeSubmitBtn.addEventListener('click',     submitHandler, { capture: true });
-  }
+  activeSubmitBtn.addEventListener('mousedown', submitHandler, { capture: true });
+  activeSubmitBtn.addEventListener('click',     submitHandler, { capture: true });
+  activeForm.addEventListener('submit',         submitHandler, { capture: true });
 
   emailInput.addEventListener('input', (e) => {
     if (gen !== contextGeneration) return;
@@ -131,10 +148,6 @@ function lockContext(emailInput) {
     if (gen !== contextGeneration) return;
     if (e.key === 'Enter') submitHandler();
   });
-
-  if (activeForm) {
-    activeForm.addEventListener('submit', submitHandler, { capture: true });
-  }
 }
 
 // ── Reset context (called on navigation or DOM loss) ─────────
@@ -157,21 +170,20 @@ function resetContext() {
 // ── Interaction listener ──────────────────────────────────────
 
 function onEmailInteraction(e) {
+  // Step 1: read e.target — this is the only element evaluated
   const target = e.target;
   if (!target || target.tagName !== 'INPUT') return;
 
+  // Step 2-4: check if target matches a valid email selector; stop if not
+  let matched = false;
   for (const sel of EMAIL_INPUT_SELS) {
-    try {
-      if (target.matches(sel)) {
-        // If already locked to a DIFFERENT input, switch context
-        if (contextLocked && activeEmailInput !== target) {
-          contextLocked = false;
-        }
-        lockContext(target);
-        return;
-      }
-    } catch (_) {}
+    try { if (target.matches(sel)) { matched = true; break; } } catch (_) {}
   }
+  if (!matched) return;
+
+  // Step 5-6: matched — do not inspect any other elements; build context
+  // lockContext handles: same input → noop, different input → new context
+  lockContext(target);
 }
 
 document.addEventListener('focusin', onEmailInteraction, { capture: true });
