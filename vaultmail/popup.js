@@ -4,10 +4,13 @@
 
 let emails            = [];
 let previewStatus     = 'activated'; // 'activated' | 'processing' | 'active'
-let currentFieldEmail = null;        // live email in the active input (not persisted across reopens)
-let capturedEmail     = null;        // last successfully submitted email (persisted)
+let currentFieldEmail = null;
+let capturedEmail     = null;        // last successfully submitted email (persisted, 2hr TTL)
+let replitActive      = false;       // true when at least one Replit tab is open
 let activeTab         = 'emails';
 let pendingDelete     = null;
+
+const TTL_MS = 2 * 60 * 60 * 1000; // 2 hours — must match content.js
 
 // ── DOM refs ──────────────────────────────────────────────────
 
@@ -49,10 +52,16 @@ const detectEmpty = document.getElementById('detectEmpty');
 
 function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'capturedEmail', 'previewStatus', 'currentFieldEmail', 'detectedSelectors'],
+    ['vaultmail_emails', 'capturedEmail', 'capturedEmailTs',
+     'previewStatus', 'previewStatusTs', 'currentFieldEmail', 'detectedSelectors'],
     (r) => {
+      const now = Date.now();
+
+      // TTL check: expire capturedEmail if older than 2 hours
+      const capturedExpired = r.capturedEmailTs && (now - r.capturedEmailTs) > TTL_MS;
+      capturedEmail     = capturedExpired ? null : (r.capturedEmail || null);
+
       emails            = r.vaultmail_emails  || [];
-      capturedEmail     = r.capturedEmail     || null;
       previewStatus     = r.previewStatus     || 'activated';
       currentFieldEmail = r.currentFieldEmail || null;
       cb(r.detectedSelectors || []);
@@ -125,18 +134,21 @@ const STATUS_CONFIG = {
 };
 
 function renderPreview() {
-  const cfg = STATUS_CONFIG[previewStatus] || STATUS_CONFIG.activated;
+  // When no Replit tab is open, show Idle state regardless of previewStatus
+  const displayStatus = (!replitActive && previewStatus !== 'active') ? 'activated' : previewStatus;
+
+  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG.activated;
 
   pvTitle.textContent = cfg.title;
-  pvDesc.textContent  = previewStatus === 'active' ? (capturedEmail || '') : cfg.desc;
+  pvDesc.textContent  = displayStatus === 'active' ? (capturedEmail || '') : cfg.desc;
 
   pvDot.className        = 'pv-dot ' + cfg.dot;
   pvStatusCard.className = 'pv-status-card ' + cfg.cardClass;
 
   // Seg dot
   segDot.className = 'seg-dot';
-  if      (previewStatus === 'processing') segDot.classList.add('dot-processing');
-  else if (previewStatus === 'active')     segDot.classList.add('dot-active');
+  if      (displayStatus === 'processing') segDot.classList.add('dot-processing');
+  else if (displayStatus === 'active')     segDot.classList.add('dot-active');
   else                                     segDot.classList.add('dot-activated');
 }
 
@@ -295,6 +307,11 @@ chrome.runtime.onMessage.addListener((message) => {
       renderPreview();
       break;
 
+    case 'REPLIT_STATUS_CHANGED':
+      replitActive = !!message.active;
+      renderPreview();
+      break;
+
     case 'SELECTORS_UPDATED':
       renderDetected(message.selectors || []);
       break;
@@ -305,9 +322,14 @@ chrome.runtime.onMessage.addListener((message) => {
 
 chrome.storage.onChanged.addListener((changes) => {
   let changed = false;
-  if ('capturedEmail'     in changes) { capturedEmail     = changes.capturedEmail.newValue     || null;         changed = true; }
-  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated';  changed = true; }
-  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;         changed = true; }
+  if ('capturedEmail'     in changes) {
+    // Apply TTL: if new value has expired, treat as null
+    const newVal = changes.capturedEmail.newValue || null;
+    capturedEmail = newVal;
+    changed = true;
+  }
+  if ('previewStatus'     in changes) { previewStatus     = changes.previewStatus.newValue     || 'activated'; changed = true; }
+  if ('currentFieldEmail' in changes) { currentFieldEmail = changes.currentFieldEmail.newValue || null;        changed = true; }
   if ('detectedSelectors' in changes) { renderDetected(changes.detectedSelectors.newValue || []); }
   if (changed) renderPreview();
 });

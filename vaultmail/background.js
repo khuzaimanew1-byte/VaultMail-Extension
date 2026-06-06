@@ -2,11 +2,21 @@
 
 // ============================================================
 // BACKGROUND SERVICE WORKER
+//
+// Responsibilities:
+//   - Track which browser tabs are on Replit
+//   - Broadcast REPLIT_STATUS_CHANGED to popup when status changes
+//
+// FIXED (was orphaned):
+//   - Was writing 'captureStatus' → now correctly writes nothing (content.js owns state)
+//   - Was writing 'currentActiveEmail' → removed (content.js owns state)
+//   - Was broadcasting 'STATUS_CHANGED' → now broadcasts 'REPLIT_STATUS_CHANGED'
+//   - Was broadcasting 'ACTIVE_EMAIL_UPDATED' → removed
 // ============================================================
 
 const REPLIT_ORIGIN = 'https://replit.com';
 
-const tabUrls = new Map();
+const tabUrls = new Map(); // tabId → url (in-memory only, not persisted)
 
 function isReplitUrl(url) {
   return url && url.startsWith(REPLIT_ORIGIN);
@@ -16,15 +26,16 @@ function broadcastToPopup(message) {
   chrome.runtime.sendMessage(message).catch(() => {});
 }
 
+let lastReplitActive = null; // track previous state to avoid redundant broadcasts
+
 function updateReplitActive() {
   const active = [...tabUrls.values()].some(u => isReplitUrl(u));
-  if (!active) {
-    // All Replit tabs closed — reset capture state
-    chrome.storage.local.set({ captureStatus: 'activated', currentActiveEmail: null }, () => {
-      broadcastToPopup({ type: 'STATUS_CHANGED', status: 'activated' });
-      broadcastToPopup({ type: 'ACTIVE_EMAIL_UPDATED', email: null });
-    });
-  }
+
+  // Only broadcast when state actually changes
+  if (active === lastReplitActive) return;
+  lastReplitActive = active;
+
+  broadcastToPopup({ type: 'REPLIT_STATUS_CHANGED', active });
 }
 
 // ── Tab lifecycle ─────────────────────────────────────────────
@@ -32,11 +43,9 @@ function updateReplitActive() {
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   const url = changeInfo.url || tab.url;
   if (!url) return;
-
   const prev = tabUrls.get(tabId);
   tabUrls.set(tabId, url);
   if (prev === url) return;
-
   updateReplitActive();
 });
 
@@ -45,33 +54,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   updateReplitActive();
 });
 
-// Seed on service worker start
+// Seed tab map on service worker start
 chrome.tabs.query({}, (tabs) => {
   for (const t of tabs) if (t.url) tabUrls.set(t.id, t.url);
-});
-
-// ── Message handler ───────────────────────────────────────────
-
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-
-  if (message.type === 'STATUS_CHANGED') {
-    const { status } = message;
-    chrome.storage.local.set({ captureStatus: status }, () => {
-      broadcastToPopup({ type: 'STATUS_CHANGED', status });
-      sendResponse({ ok: true });
-    });
-    return true;
-  }
-
-  if (message.type === 'ACTIVE_EMAIL_UPDATED') {
-    const { email } = message;
-    if (email) {
-      chrome.storage.local.set({ currentActiveEmail: email }, () => {
-        broadcastToPopup({ type: 'ACTIVE_EMAIL_UPDATED', email });
-        sendResponse({ ok: true });
-      });
-      return true;
-    }
-  }
-
+  // Compute initial state after seeding
+  lastReplitActive = null;
+  updateReplitActive();
 });
