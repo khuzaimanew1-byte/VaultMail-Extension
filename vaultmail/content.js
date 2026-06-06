@@ -21,11 +21,10 @@ const EMAIL_INPUT_SELS = [
 
 // ── Locked capture context ────────────────────────────────────
 
-let activeEmailInput  = null;
-let activeForm        = null;
-let activeSubmitBtn   = null;
-let contextLocked     = false;
-let contextGeneration = 0; // increments on every new context lock; stale handlers check this
+let activeEmailInput = null;
+let activeForm       = null;
+let activeSubmitBtn  = null;
+let contextLocked    = false;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -74,93 +73,70 @@ function ensureContextValid() {
 
 // ── Email capture ─────────────────────────────────────────────
 
-function makeSubmitHandler(gen) {
-  return function onSubmitClicked() {
-    // Stale handler from a previous context — ignore
-    if (gen !== contextGeneration) return;
-    if (!ensureContextValid()) return;
-    const val = activeEmailInput.value.trim().toLowerCase();
-    if (!val) return;
-    chrome.storage.local.set({
-      capturedEmail:     val,
-      currentFieldEmail: val,
-      previewStatus:     'active',
-    }, () => {
-      send('EMAIL_CAPTURED', { email: val });
-    });
-  };
+function onSubmitClicked() {
+  if (!ensureContextValid()) return;
+  const val = activeEmailInput.value.trim().toLowerCase();
+  if (!val) return;
+  chrome.storage.local.set({
+    capturedEmail:     val,
+    currentFieldEmail: val,
+    previewStatus:     'active',
+  }, () => {
+    send('EMAIL_CAPTURED', { email: val });
+  });
+}
+
+// ── Attach listeners to current activeSubmitBtn ───────────────
+
+function attachSubmitListeners() {
+  if (!activeSubmitBtn) return;
+  activeSubmitBtn.addEventListener('mousedown', onSubmitClicked, { capture: true });
+  activeSubmitBtn.addEventListener('click',     onSubmitClicked, { capture: true });
 }
 
 // ── Lock context on first email input interaction ─────────────
-//
-// Spec requirements:
-//   1. Resolve form from the interacted element only.
-//   2. Find submit button strictly inside that form.
-//   3. All three (emailInput + form + submitBtn) must exist.
-//   4. If any is missing → do NOT lock; return to activated.
-//   5. Different email field → immediately discard old context, build new.
 
 function lockContext(emailInput) {
-  // Same input already locked — nothing to do
   if (contextLocked && activeEmailInput === emailInput) return;
 
-  // Resolve requirements BEFORE touching any state
-  const form      = emailInput.form || emailInput.closest('form');
-  const submitBtn = findSubmitInForm(form);
-
-  // All three required: emailInput + parent form + submit button
-  // If any is missing → do not lock; return to Extension Activated
-  if (!form || !submitBtn) {
-    resetContext();
-    return;
-  }
-
-  // Valid context: increment generation to invalidate all prior handlers
-  contextGeneration++;
-  const gen = contextGeneration;
-
+  // Different email field — replace context
+  contextLocked    = false;
   activeEmailInput = emailInput;
-  activeForm       = form;
-  activeSubmitBtn  = submitBtn;
+  activeForm       = emailInput.form || emailInput.closest('form');
+  activeSubmitBtn  = findSubmitInForm(activeForm);
   contextLocked    = true;
 
   const initialVal = emailInput.value.trim();
 
   chrome.storage.local.set({
-    previewStatus:     'processing',
+    previewStatus:    'processing',
     currentFieldEmail: initialVal,
   }, () => {
     send('CONTEXT_LOCKED', { email: initialVal });
   });
 
-  const submitHandler = makeSubmitHandler(gen);
+  if (activeSubmitBtn) attachSubmitListeners();
 
-  activeSubmitBtn.addEventListener('mousedown', submitHandler, { capture: true });
-  activeSubmitBtn.addEventListener('click',     submitHandler, { capture: true });
-  activeForm.addEventListener('submit',         submitHandler, { capture: true });
-
-  emailInput.addEventListener('input', (e) => {
-    if (gen !== contextGeneration) return;
-    onFieldInput();
-  });
-
+  emailInput.addEventListener('input', onFieldInput);
   emailInput.addEventListener('keydown', (e) => {
-    if (gen !== contextGeneration) return;
-    if (e.key === 'Enter') submitHandler();
+    if (e.key === 'Enter') onSubmitClicked();
   });
+
+  if (activeForm) {
+    activeForm.addEventListener('submit', onSubmitClicked, { capture: true });
+  }
 }
 
-// ── Reset context (called on navigation or DOM loss) ─────────
+// ── Reset context (called on navigation) ─────────────────────
 
 function resetContext() {
-  contextGeneration++; // invalidate any in-flight handlers
   activeEmailInput = null;
   activeForm       = null;
   activeSubmitBtn  = null;
   contextLocked    = false;
 
   chrome.storage.local.set({
-    previewStatus:     'activated',
+    previewStatus:    'activated',
     currentFieldEmail: null,
   }, () => {
     send('CONTEXT_RESET');
@@ -170,20 +146,21 @@ function resetContext() {
 // ── Interaction listener ──────────────────────────────────────
 
 function onEmailInteraction(e) {
-  // Step 1: read e.target — this is the only element evaluated
   const target = e.target;
   if (!target || target.tagName !== 'INPUT') return;
 
-  // Step 2-4: check if target matches a valid email selector; stop if not
-  let matched = false;
   for (const sel of EMAIL_INPUT_SELS) {
-    try { if (target.matches(sel)) { matched = true; break; } } catch (_) {}
+    try {
+      if (target.matches(sel)) {
+        // If already locked to a DIFFERENT input, switch context
+        if (contextLocked && activeEmailInput !== target) {
+          contextLocked = false;
+        }
+        lockContext(target);
+        return;
+      }
+    } catch (_) {}
   }
-  if (!matched) return;
-
-  // Step 5-6: matched — do not inspect any other elements; build context
-  // lockContext handles: same input → noop, different input → new context
-  lockContext(target);
 }
 
 document.addEventListener('focusin', onEmailInteraction, { capture: true });
@@ -263,10 +240,3 @@ observer.observe(document.documentElement, { childList: true, subtree: true });
 scanSelectors();
 setTimeout(scanSelectors, 1000);
 setTimeout(scanSelectors, 3000);
-
-// ── Init: signal activated state ─────────────────────────────
-// Content script is running, so a Replit tab is active.
-// Reset to 'activated' without clearing capturedEmail so a previously
-// captured email persists across page loads within the same session.
-chrome.storage.local.set({ previewStatus: 'activated', currentFieldEmail: null });
-send('CONTEXT_RESET');
