@@ -1,0 +1,264 @@
+Create a complete VaultMail Data Lifecycle Audit.
+
+I want a dedicated internal audit view (or developer documentation page) that clearly explains every piece of data the extension captures, stores, updates, displays, and removes.
+
+Do NOT give generic explanations.
+
+Analyze the actual extension architecture and produce a precise breakdown.
+
+========================================
+AUDIT REQUIREMENTS
+==================
+
+For every data item show:
+
+* Name
+* Purpose
+* Source
+* Where it is stored
+* Whether it is temporary or persistent
+* When it is created
+* When it is updated
+* When it is removed
+* Which UI uses it
+
+========================================
+SECTION 1
+CAPTURED DATA
+=============
+
+List every value the extension captures.
+
+Examples:
+
+savedEmails
+currentActiveEmail
+pendingEmail
+replitActive
+currentPreviewState
+
+and any other values found in the codebase.
+
+For each value explain:
+
+What captures it?
+Where does it come from?
+How does it change?
+
+========================================
+SECTION 2
+STORAGE AUDIT
+=============
+
+Create a table.
+
+Example:
+
+Data Name
+Storage Location
+Persistent?
+Survives Browser Restart?
+Survives Refresh?
+Survives Extension Reload?
+
+Example format:
+
+savedEmails
+chrome.storage.local
+YES
+YES
+YES
+YES
+
+currentActiveEmail
+chrome.storage.local
+YES
+YES
+YES
+YES
+
+replitActive
+memory only
+NO
+NO
+NO
+NO
+
+Generate the actual table from implementation.
+
+========================================
+SECTION 3
+PREVIEW TAB AUDIT
+=================
+
+Deeply analyze Preview Tab.
+
+Show:
+
+What value powers Preview?
+
+Example:
+
+currentActiveEmail
+
+Answer:
+
+1. Where does Preview get data from?
+2. Is Preview persistent?
+3. When does Preview update?
+4. When does Preview clear?
+5. Can Preview survive browser restart?
+6. Can Preview survive extension reload?
+
+========================================
+SECTION 4
+EMAIL TAB AUDIT
+===============
+
+Deeply analyze Emails tab.
+
+Show:
+
+1. Which storage key provides emails?
+2. How are emails added?
+3. How are duplicates handled?
+4. How are emails deleted?
+5. What survives restart?
+6. What survives refresh?
+
+========================================
+SECTION 5
+STATE MACHINE AUDIT
+===================
+
+Analyze all extension states.
+
+Examples:
+
+Idle
+Activated
+Processing
+Previewing Account
+
+For every state show:
+
+Entry conditions
+Exit conditions
+Dependencies
+
+Generate a complete state diagram.
+
+========================================
+SECTION 6
+DELETION RULES
+==============
+
+For every stored value explain:
+
+What removes it?
+
+Examples:
+
+Delete Email button
+Extension uninstall
+Storage clear
+Manual reset
+
+Show exact behavior.
+
+========================================
+SECTION 7
+PERSISTENCE MATRIX
+==================
+
+Generate a matrix.
+
+Example:
+
+## Action                         savedEmails   currentActiveEmail
+
+Refresh Tab                    YES           YES
+Close Popup                    YES           YES
+Browser Restart                YES           YES
+Extension Reload               YES           YES
+Delete Email                   YES/Removed   NO
+Extension Uninstall            NO            NO
+
+Generate the real matrix from implementation.
+
+========================================
+SECTION 8
+DATA FLOW DIAGRAM
+=================
+
+Create a complete flow.
+
+Example:
+
+User enters email
+↓
+Button click
+↓
+currentActiveEmail updated
+↓
+chrome.storage.local updated
+↓
+Preview Tab rerenders
+
+Also create flow for:
+
+Emails tab
+Delete flow
+Status flow
+Extension activation flow
+
+========================================
+SECTION 9
+ORPHANED DATA DETECTION
+=======================
+
+Scan the entire codebase.
+
+Detect:
+
+* unused storage keys
+* dead state variables
+* abandoned listeners
+* stale preview logic
+* values that are written but never read
+* values that are read but never written
+
+Provide cleanup recommendations.
+
+========================================
+SECTION 10
+FINAL SUMMARY
+=============
+
+Produce a final report:
+
+PERMANENTLY STORED DATA
+
+(list only truly persistent values)
+
+TEMPORARY DATA
+
+(list only runtime values)
+
+AUTO-DELETED DATA
+
+(list values removed automatically)
+
+MANUALLY-DELETED DATA
+
+(list values removed by user actions)
+
+This report should make it instantly obvious:
+
+* what the extension captures
+* what it remembers
+* what it forgets
+* when it forgets it
+* what survives restarts
+* what survives refreshes
+* what never touches storage

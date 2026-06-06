@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>VaultMail — Data Lifecycle Audit</title>
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #141416;
+    --surface2: #1c1c1f;
+    --border: #2a2a2e;
+    --accent: #3b82f6;
+    --accent2: #6366f1;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --ok: #22c55e;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.7 -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 0 0 80px; }
+
+  /* Header */
+  .page-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 28px 40px 24px; position: sticky; top: 0; z-index: 100; }
+  .page-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+  .page-header p  { color: var(--muted); font-size: 13px; margin-top: 4px; }
+  .badge-row { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .3px; }
+  .badge-blue   { background: #1d3a6e; color: #93c5fd; }
+  .badge-green  { background: #14532d; color: #86efac; }
+  .badge-yellow { background: #713f12; color: #fde68a; }
+  .badge-red    { background: #7f1d1d; color: #fca5a5; }
+  .badge-gray   { background: #1e293b; color: #94a3b8; }
+
+  /* TOC */
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px 24px; margin: 32px 40px 0; }
+  .toc h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; }
+  .toc ol { padding-left: 18px; }
+  .toc li { margin: 4px 0; }
+  .toc a  { color: var(--accent); text-decoration: none; font-size: 13px; }
+  .toc a:hover { text-decoration: underline; }
+
+  /* Sections */
+  .section { margin: 40px 40px 0; }
+  .section-title { font-size: 16px; font-weight: 700; padding-bottom: 10px; border-bottom: 1px solid var(--border); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+  .section-num { background: var(--accent); color: white; border-radius: 6px; width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+  .card-title { font-size: 13px; font-weight: 700; font-family: var(--mono); color: var(--accent); margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 24px; }
+  .card-row  { display: flex; flex-direction: column; gap: 2px; }
+  .card-row .label { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); }
+  .card-row .value { font-size: 13px; color: var(--text); }
+  .value.mono { font-family: var(--mono); font-size: 12px; }
+  .value.ok   { color: var(--ok); }
+  .value.warn { color: var(--warn); }
+  .value.danger { color: var(--danger); }
+  .value.muted  { color: var(--muted); }
+
+  /* Orphan card */
+  .card.orphan { border-color: #3d1a1a; background: #160d0d; }
+  .card.orphan .card-title { color: var(--danger); }
+  .orphan-note { background: #2d1010; border: 1px solid #5a1a1a; border-radius: 6px; padding: 10px 14px; margin-top: 10px; font-size: 12px; color: #fca5a5; line-height: 1.6; }
+
+  /* Table */
+  .audit-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .audit-table th { background: var(--surface2); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .8px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  .audit-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .audit-table tr:last-child td { border-bottom: none; }
+  .audit-table tr:hover td { background: var(--surface2); }
+  .audit-table td:first-child { font-family: var(--mono); color: var(--accent); font-weight: 600; }
+
+  /* State machine */
+  .state-block { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+  .state-header { padding: 12px 18px; font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  .state-header.idle       { background: #1a1a2e; border-bottom: 1px solid var(--border); }
+  .state-header.activated  { background: #0f2a1f; border-bottom: 1px solid var(--border); }
+  .state-header.processing { background: #2a1f0a; border-bottom: 1px solid var(--border); }
+  .state-header.active     { background: #0a2040; border-bottom: 1px solid var(--border); }
+  .state-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-idle       { background: #475569; }
+  .dot-activated  { background: var(--ok); }
+  .dot-processing { background: var(--warn); }
+  .dot-active     { background: var(--accent); }
+  .state-body { padding: 14px 18px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .state-col .label { font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 6px; }
+  .state-col ul { list-style: none; padding: 0; }
+  .state-col li { font-size: 12px; padding: 3px 0; color: var(--text); }
+  .state-col li::before { content: '→ '; color: var(--muted); }
+
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step { display: flex; align-items: flex-start; gap: 14px; }
+  .flow-line { display: flex; flex-direction: column; align-items: center; }
+  .flow-circle { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .flow-connector { width: 2px; background: var(--border); flex: 1; min-height: 20px; }
+  .flow-content { padding: 3px 0 20px; }
+  .flow-content .fc-title { font-size: 13px; font-weight: 600; }
+  .flow-content .fc-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; font-family: var(--mono); }
+  .fc-blue   { background: #1e3a5f; color: #60a5fa; }
+  .fc-green  { background: #14532d; color: #86efac; }
+  .fc-purple { background: #2e1065; color: #c4b5fd; }
+  .fc-orange { background: #431407; color: #fdba74; }
+  .fc-red    { background: #7f1d1d; color: #fca5a5; }
+  .fc-gray   { background: #1e293b; color: #94a3b8; }
+
+  /* Persistence matrix */
+  .matrix-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .matrix-table th { background: var(--surface2); color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .6px; padding: 10px 12px; text-align: center; border: 1px solid var(--border); }
+  .matrix-table th:first-child { text-align: left; }
+  .matrix-table td { padding: 9px 12px; border: 1px solid var(--border); text-align: center; font-size: 12px; }
+  .matrix-table td:first-child { text-align: left; font-size: 12px; color: var(--text); }
+  .matrix-table tr:hover td { background: var(--surface2); }
+  .yes  { color: var(--ok); font-weight: 600; }
+  .no   { color: var(--danger); font-weight: 600; }
+  .part { color: var(--warn); font-weight: 600; }
+  .na   { color: var(--muted); }
+
+  /* Final summary */
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .summary-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+  .summary-card h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .8px; color: var(--muted); margin-bottom: 12px; }
+  .summary-card ul { list-style: none; padding: 0; }
+  .summary-card li { font-size: 12px; font-family: var(--mono); padding: 5px 0; border-bottom: 1px solid var(--border); color: var(--text); display: flex; align-items: center; gap: 6px; }
+  .summary-card li:last-child { border-bottom: none; }
+  .pill { display: inline-block; padding: 1px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; }
+  .pill-green  { background: #14532d; color: #86efac; }
+  .pill-yellow { background: #713f12; color: #fde68a; }
+  .pill-red    { background: #7f1d1d; color: #fca5a5; }
+  .pill-gray   { background: #1e293b; color: #94a3b8; }
+
+  code { font-family: var(--mono); font-size: 11px; background: var(--surface2); padding: 1px 5px; border-radius: 3px; color: #a5b4fc; }
+
+  .note { background: var(--surface2); border-left: 3px solid var(--warn); border-radius: 0 6px 6px 0; padding: 10px 14px; margin-top: 12px; font-size: 12.5px; color: #fde68a; line-height: 1.6; }
+  .rec  { background: var(--surface2); border-left: 3px solid var(--ok);   border-radius: 0 6px 6px 0; padding: 10px 14px; margin-top: 10px; font-size: 12.5px; color: #86efac; line-height: 1.6; }
+
+  hr { border: none; border-top: 1px solid var(--border); margin: 32px 40px; }
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>VaultMail — Data Lifecycle Audit</h1>
+  <p>Generated from actual codebase analysis of <code>content.js</code>, <code>popup.js</code>, <code>background.js</code></p>
+  <div class="badge-row">
+    <span class="badge badge-blue">Manifest V3</span>
+    <span class="badge badge-green">chrome.storage.local</span>
+    <span class="badge badge-yellow">3 orphaned bg.js keys</span>
+    <span class="badge badge-red">1 undeclared variable</span>
+    <span class="badge badge-gray">Interaction-First Architecture</span>
+  </div>
+</div>
+
+<div class="toc">
+  <h3>Table of Contents</h3>
+  <ol>
+    <li><a href="#s1">Section 1 — Captured Data</a></li>
+    <li><a href="#s2">Section 2 — Storage Audit Table</a></li>
+    <li><a href="#s3">Section 3 — Preview Tab Audit</a></li>
+    <li><a href="#s4">Section 4 — Emails Tab Audit</a></li>
+    <li><a href="#s5">Section 5 — State Machine Audit</a></li>
+    <li><a href="#s6">Section 6 — Deletion Rules</a></li>
+    <li><a href="#s7">Section 7 — Persistence Matrix</a></li>
+    <li><a href="#s8">Section 8 — Data Flow Diagrams</a></li>
+    <li><a href="#s9">Section 9 — Orphaned Data Detection</a></li>
+    <li><a href="#s10">Section 10 — Final Summary</a></li>
+  </ol>
+</div>
+
+<!-- ───────────────────────────────── SECTION 1 ───────────────────────────────── -->
+<div class="section" id="s1">
+  <div class="section-title"><span class="section-num">1</span> Captured Data</div>
+
+  <div class="card">
+    <div class="card-title">vaultmail_emails <span class="badge badge-green">PERSISTENT</span></div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Type</span><span class="value mono">string[]</span></div>
+      <div class="card-row"><span class="label">Source</span><span class="value">User manual input via Add Emails modal</span></div>
+      <div class="card-row"><span class="label">Storage</span><span class="value mono">chrome.storage.local</span></div>
+      <div class="card-row"><span class="label">Written by</span><span class="value mono">popup.js → saveEmails()</span></div>
+      <div class="card-row"><span class="label">Read by</span><span class="value mono">popup.js → loadState()</span></div>
+      <div class="card-row"><span class="label">Deduplication</span><span class="value ok">YES — Set() before save</span></div>
+      <div class="card-row"><span class="label">Created</span><span class="value">First time user saves an email via modal</span></div>
+      <div class="card-row"><span class="label">Updated</span><span class="value">Each save; deduped merge with existing array</span></div>
+      <div class="card-row"><span class="label">Removed</span><span class="value">Per-item delete via confirmDelete(); never auto-cleared</span></div>
+      <div class="card-row"><span class="label">UI</span><span class="value">Emails tab — email grid cards + count badge</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">capturedEmail <span class="badge badge-green">PERSISTENT</span></div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Type</span><span class="value mono">string | null</span></div>
+      <div class="card-row"><span class="label">Source</span><span class="value">content.js — value of locked email input at submit time</span></div>
+      <div class="card-row"><span class="label">Storage</span><span class="value mono">chrome.storage.local</span></div>
+      <div class="card-row"><span class="label">Written by</span><span class="value mono">content.js → makeSubmitHandler()</span></div>
+      <div class="card-row"><span class="label">Read by</span><span class="value mono">popup.js → loadState(), storage.onChanged</span></div>
+      <div class="card-row"><span class="label">Created</span><span class="value">When submit button click/Enter is captured</span></div>
+      <div class="card-row"><span class="label">Updated</span><span class="value">Each new submit capture — overwrites previous</span></div>
+      <div class="card-row"><span class="label">Removed</span><span class="value class='warn'">Never explicitly removed — persists until new capture or extension uninstall</span></div>
+      <div class="card-row"><span class="label">UI</span><span class="value">Preview tab — shown as description in Previewing Account state</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">previewStatus <span class="badge badge-green">PERSISTENT</span></div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Type</span><span class="value mono">'activated' | 'processing' | 'active'</span></div>
+      <div class="card-row"><span class="label">Source</span><span class="value">content.js — state machine transitions</span></div>
+      <div class="card-row"><span class="label">Storage</span><span class="value mono">chrome.storage.local</span></div>
+      <div class="card-row"><span class="label">Written by</span><span class="value mono">content.js → lockContext(), makeSubmitHandler(), resetContext(), init</span></div>
+      <div class="card-row"><span class="label">Read by</span><span class="value mono">popup.js → loadState(), storage.onChanged</span></div>
+      <div class="card-row"><span class="label">Created</span><span class="value">content.js init — set to 'activated'</span></div>
+      <div class="card-row"><span class="label">Updated</span><span class="value">On every state transition (context lock → processing; submit → active; reset → activated)</span></div>
+      <div class="card-row"><span class="label">Removed</span><span class="value">Never removed — always has a value</span></div>
+      <div class="card-row"><span class="label">UI</span><span class="value">Preview tab — status card title, dot color, card style; Preview tab button dot</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">currentFieldEmail <span class="badge badge-yellow">SEMI-PERSISTENT</span></div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Type</span><span class="value mono">string | null</span></div>
+      <div class="card-row"><span class="label">Source</span><span class="value">Live value of the focused email input as user types</span></div>
+      <div class="card-row"><span class="label">Storage</span><span class="value mono">chrome.storage.local</span></div>
+      <div class="card-row"><span class="label">Written by</span><span class="value mono">content.js → lockContext() (initial), onFieldInput() (on each keystroke)</span></div>
+      <div class="card-row"><span class="label">Read by</span><span class="value mono">popup.js → loadState(), storage.onChanged</span></div>
+      <div class="card-row"><span class="label">Created</span><span class="value">When email field is first interacted (context lock)</span></div>
+      <div class="card-row"><span class="label">Updated</span><span class="value">Every keystroke in the locked email field</span></div>
+      <div class="card-row"><span class="label">Removed</span><span class="value warn">Set to null on context reset / SPA navigation</span></div>
+      <div class="card-row"><span class="label">UI</span><span class="value">Not currently rendered in popup (captured but not displayed after recent refactor)</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">detectedSelectors <span class="badge badge-yellow">REFRESHED ON SCAN</span></div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Type</span><span class="value mono">object[] — {sel, label, kind, tagName, id, name, type, aria, text}</span></div>
+      <div class="card-row"><span class="label">Source</span><span class="value">content.js — MutationObserver scans page DOM (display-only, not capture)</span></div>
+      <div class="card-row"><span class="label">Storage</span><span class="value mono">chrome.storage.local</span></div>
+      <div class="card-row"><span class="label">Written by</span><span class="value mono">content.js → scanSelectors() via MutationObserver + setTimeout</span></div>
+      <div class="card-row"><span class="label">Read by</span><span class="value mono">popup.js → loadState(), storage.onChanged, SELECTORS_UPDATED message</span></div>
+      <div class="card-row"><span class="label">Created</span><span class="value">content.js init — first scan runs immediately</span></div>
+      <div class="card-row"><span class="label">Updated</span><span class="value">Every DOM mutation (throttled 200ms); also at 1s and 3s after init</span></div>
+      <div class="card-row"><span class="label">Removed</span><span class="value">Overwritten on each scan — old value replaced entirely</span></div>
+      <div class="card-row"><span class="label">UI</span><span class="value">Preview tab — Detected Elements panel (detectCount, detectList)</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ───────────────────────────────── SECTION 2 ───────────────────────────────── -->
+<div class="section" id="s2">
+  <div class="section-title"><span class="section-num">2</span> Storage Audit Table</div>
+  <div style="overflow-x:auto">
+  <table class="audit-table">
+    <thead>
+      <tr>
+        <th>Key Name</th>
+        <th>Storage Location</th>
+        <th>Persistent?</th>
+        <th>Survives Browser Restart?</th>
+        <th>Survives Tab Refresh?</th>
+        <th>Survives Extension Reload?</th>
+        <th>Written By</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>vaultmail_emails</td>
+        <td>chrome.storage.local</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td>popup.js</td>
+      </tr>
+      <tr>
+        <td>capturedEmail</td>
+        <td>chrome.storage.local</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td>content.js</td>
+      </tr>
+      <tr>
+        <td>previewStatus</td>
+        <td>chrome.storage.local</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="no">NO — reset to 'activated' on page load</td>
+        <td class="yes">YES</td>
+        <td>content.js</td>
+      </tr>
+      <tr>
+        <td>currentFieldEmail</td>
+        <td>chrome.storage.local</td>
+        <td class="part">PARTIAL</td>
+        <td class="part">PARTIAL</td>
+        <td class="no">NO — reset to null on page load</td>
+        <td class="part">PARTIAL</td>
+        <td>content.js</td>
+      </tr>
+      <tr>
+        <td>detectedSelectors</td>
+        <td>chrome.storage.local</td>
+        <td class="part">PARTIAL</td>
+        <td class="part">STALE until next scan</td>
+        <td class="no">NO — overwritten on each page load</td>
+        <td class="part">STALE</td>
+        <td>content.js</td>
+      </tr>
+      <tr style="opacity:.5">
+        <td>captureStatus ⚠</td>
+        <td>chrome.storage.local</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td>background.js <span class="pill pill-red">ORPHAN — never read</span></td>
+      </tr>
+      <tr style="opacity:.5">
+        <td>currentActiveEmail ⚠</td>
+        <td>chrome.storage.local</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td>background.js <span class="pill pill-red">ORPHAN — never read</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">⚠ <code>captureStatus</code> and <code>currentActiveEmail</code> are written by <code>background.js</code> but never read by <code>popup.js</code>. They accumulate in storage silently.</div>
+</div>
+
+<!-- ───────────────────────────────── SECTION 3 ───────────────────────────────── -->
+<div class="section" id="s3">
+  <div class="section-title"><span class="section-num">3</span> Preview Tab Audit</div>
+
+  <div class="card">
+    <div class="card-title">What powers the Preview tab?</div>
+    <div class="card-grid">
+      <div class="card-row"><span class="label">Primary state key</span><span class="value mono">previewStatus</span></div>
+      <div class="card-row"><span class="label">Secondary key</span><span class="value mono">capturedEmail</span></div>
+      <div class="card-row"><span class="label">Tertiary key</span><span class="value mono">currentFieldEmail (read but not currently rendered)</span></div>
+      <div class="card-row"><span class="label">Display-only key</span><span class="value mono">detectedSelectors</span></div>
+    </div>
+  </div>
+
+  <table class="audit-table" style="margin-top:0">
+    <thead>
+      <tr><th>Question</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Where does Preview get data from?</td>
+        <td><code>chrome.storage.local</code> on popup open via <code>loadState()</code>; live updates via <code>chrome.runtime.onMessage</code> and <code>chrome.storage.onChanged</code></td>
+      </tr>
+      <tr>
+        <td>Is Preview persistent?</td>
+        <td><span class="part">PARTIAL</span> — <code>previewStatus</code> is persistent but reset to <code>'activated'</code> on every Replit page load/refresh. <code>capturedEmail</code> persists across restarts.</td>
+      </tr>
+      <tr>
+        <td>When does Preview update?</td>
+        <td>On messages: <code>CONTEXT_LOCKED</code>, <code>CURRENT_EMAIL_CHANGED</code>, <code>EMAIL_CAPTURED</code>, <code>CONTEXT_RESET</code>, <code>REPLIT_STATUS_CHANGED</code>. Also on any storage change for its keys.</td>
+      </tr>
+      <tr>
+        <td>When does Preview clear?</td>
+        <td>Returns to Activated state on: SPA navigation, page refresh, tab close, context reset (no valid form+submit found)</td>
+      </tr>
+      <tr>
+        <td>Can Preview survive browser restart?</td>
+        <td><span class="part">PARTIAL</span> — Popup will reopen to Activated state (content script not running). <code>capturedEmail</code> is still in storage and will show in Previewing Account if user navigates back to Replit.</td>
+      </tr>
+      <tr>
+        <td>Can Preview survive extension reload?</td>
+        <td><span class="part">PARTIAL</span> — Same as restart. Storage persists; live state is lost until content script re-runs on the page.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ───────────────────────────────── SECTION 4 ───────────────────────────────── -->
+<div class="section" id="s4">
+  <div class="section-title"><span class="section-num">4</span> Emails Tab Audit</div>
+
+  <table class="audit-table">
+    <thead>
+      <tr><th>Question</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Which storage key provides emails?</td>
+        <td><code>vaultmail_emails</code> — string array in <code>chrome.storage.local</code></td>
+      </tr>
+      <tr>
+        <td>How are emails added?</td>
+        <td>User pastes/types into Add modal textarea → <code>parseEmails()</code> splits on newlines/commas, validates format via regex, lowercases all → merged with existing array using <code>Set()</code> deduplication → <code>saveEmails()</code> writes to storage</td>
+      </tr>
+      <tr>
+        <td>How are duplicates handled?</td>
+        <td><code>[...new Set([...emails, ...parsed])]</code> — deduped at write time. Cross-session dedup works because existing emails are loaded first. Case-insensitive: all lowercased before comparison.</td>
+      </tr>
+      <tr>
+        <td>How are emails deleted?</td>
+        <td>Delete button → <code>openDeleteModal(email)</code> → user confirms → <code>confirmDelete()</code> → <code>emails.filter(e => e !== target)</code> → <code>saveEmails()</code>. Card plays CSS removal animation first.</td>
+      </tr>
+      <tr>
+        <td>What survives restart?</td>
+        <td><span class="yes">ALL emails</span> — <code>vaultmail_emails</code> is in <code>chrome.storage.local</code>, persists indefinitely</td>
+      </tr>
+      <tr>
+        <td>What survives tab refresh?</td>
+        <td><span class="yes">ALL emails</span> — tab refresh does not affect <code>chrome.storage.local</code></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ───────────────────────────────── SECTION 5 ───────────────────────────────── -->
+<div class="section" id="s5">
+  <div class="section-title"><span class="section-num">5</span> State Machine Audit</div>
+
+  <div class="state-block">
+    <div class="state-header idle">
+      <span class="state-dot dot-idle"></span>
+      Idle (implicit — no Replit tab active)
+    </div>
+    <div class="state-body">
+      <div class="state-col">
+        <div class="label">Entry Conditions</div>
+        <ul>
+          <li>No Replit.com tab is open</li>
+          <li>background.js detects zero Replit URLs in tabUrls Map</li>
+          <li>replitActive = false</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Exit Conditions</div>
+        <ul>
+          <li>User opens a Replit tab</li>
+          <li>background.js sets replitActive = true</li>
+          <li>→ Transitions to Activated</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Dependencies</div>
+        <ul>
+          <li>background.js tab tracking (tabUrls Map)</li>
+          <li>replitActive flag in popup memory</li>
+          <li>capturedEmail (shown in description if present)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-block">
+    <div class="state-header activated">
+      <span class="state-dot dot-activated"></span>
+      Extension Activated
+    </div>
+    <div class="state-body">
+      <div class="state-col">
+        <div class="label">Entry Conditions</div>
+        <ul>
+          <li>content.js loads on Replit page</li>
+          <li>SPA navigation fires pushState/replaceState</li>
+          <li>lockContext() fails (no form or no submit btn)</li>
+          <li>resetContext() called</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Exit Conditions</div>
+        <ul>
+          <li>User interacts with valid email field</li>
+          <li>Form and submit button both found</li>
+          <li>→ Transitions to Processing</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Dependencies</div>
+        <ul>
+          <li>previewStatus = 'activated' in storage</li>
+          <li>currentFieldEmail = null</li>
+          <li>content.js running on page</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-block">
+    <div class="state-header processing">
+      <span class="state-dot dot-processing"></span>
+      Processing
+    </div>
+    <div class="state-body">
+      <div class="state-col">
+        <div class="label">Entry Conditions</div>
+        <ul>
+          <li>User focuses/types in valid email field</li>
+          <li>emailInput + form + submitBtn all resolved</li>
+          <li>lockContext() succeeds</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Exit Conditions</div>
+        <ul>
+          <li>Submit click/Enter → active</li>
+          <li>Navigation → activated</li>
+          <li>DOM loss of activeEmailInput → activated</li>
+          <li>User focuses different valid email field → new Processing context</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Dependencies</div>
+        <ul>
+          <li>previewStatus = 'processing' in storage</li>
+          <li>activeEmailInput, activeForm, activeSubmitBtn in content.js memory</li>
+          <li>contextGeneration counter</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="state-block">
+    <div class="state-header active">
+      <span class="state-dot dot-active"></span>
+      Previewing Account
+    </div>
+    <div class="state-body">
+      <div class="state-col">
+        <div class="label">Entry Conditions</div>
+        <ul>
+          <li>submit button clicked / Enter pressed / form submitted</li>
+          <li>makeSubmitHandler fires</li>
+          <li>gen === contextGeneration (not stale)</li>
+          <li>activeEmailInput.value is non-empty</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Exit Conditions</div>
+        <ul>
+          <li>SPA navigation → activated</li>
+          <li>Page refresh → activated</li>
+          <li>User interacts with another email field → processing</li>
+        </ul>
+      </div>
+      <div class="state-col">
+        <div class="label">Dependencies</div>
+        <ul>
+          <li>previewStatus = 'active' in storage</li>
+          <li>capturedEmail = &lt;email&gt; in storage</li>
+          <li>UI shows capturedEmail as description</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────── SECTION 6 ───────────────────────────────── -->
+<div class="section" id="s6">
+  <div class="section-title"><span class="section-num">6</span> Deletion Rules</div>
+
+  <table class="audit-table">
+    <thead>
+      <tr><th>Data Item</th><th>What Removes It?</th><th>Trigger</th><th>Exact Behavior</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>vaultmail_emails (single)</td>
+        <td>User clicks Delete button on email card → confirms in modal</td>
+        <td>Manual</td>
+        <td><code>confirmDelete()</code>: filters email out of array, calls <code>saveEmails()</code>, rerenders grid. Card animation plays first.</td>
+      </tr>
+      <tr>
+        <td>vaultmail_emails (all)</td>
+        <td>Extension uninstall, or manual <code>chrome.storage.local.clear()</code></td>
+        <td>System / DevTools</td>
+        <td>Entire storage.local is wiped. No UI action clears all emails at once.</td>
+      </tr>
+      <tr>
+        <td>capturedEmail</td>
+        <td>Never explicitly deleted by the extension</td>
+        <td>Extension uninstall only</td>
+        <td>Persists indefinitely. New captures overwrite it. No UI affordance to clear it.</td>
+      </tr>
+      <tr>
+        <td>previewStatus</td>
+        <td>Overwritten on every state transition; reset to 'activated' on page load</td>
+        <td>Automatic</td>
+        <td><code>chrome.storage.local.set({ previewStatus: 'activated' })</code> fires on every content.js initialization.</td>
+      </tr>
+      <tr>
+        <td>currentFieldEmail</td>
+        <td>Reset to null on context reset / SPA navigation</td>
+        <td>Automatic</td>
+        <td><code>resetContext()</code> sets <code>currentFieldEmail: null</code>. Also cleared on content.js init.</td>
+      </tr>
+      <tr>
+        <td>detectedSelectors</td>
+        <td>Overwritten on every scan</td>
+        <td>Automatic</td>
+        <td>MutationObserver triggers <code>scanSelectors()</code> → entire array replaced in storage each time.</td>
+      </tr>
+      <tr style="opacity:.5">
+        <td>captureStatus ⚠</td>
+        <td>Never deleted — accumulates in storage</td>
+        <td>None</td>
+        <td>background.js writes 'activated' only when all Replit tabs close. Orphan key — no cleanup.</td>
+      </tr>
+      <tr style="opacity:.5">
+        <td>currentActiveEmail ⚠</td>
+        <td>Set to null when Replit tabs close, but key never removed</td>
+        <td>background.js only</td>
+        <td>Orphan key — written but never consumed.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ───────────────────────────────── SECTION 7 ───────────────────────────────── -->
+<div class="section" id="s7">
+  <div class="section-title"><span class="section-num">7</span> Persistence Matrix</div>
+  <div style="overflow-x:auto">
+  <table class="matrix-table">
+    <thead>
+      <tr>
+        <th style="min-width:180px">Action</th>
+        <th>vaultmail_emails</th>
+        <th>capturedEmail</th>
+        <th>previewStatus</th>
+        <th>currentFieldEmail</th>
+        <th>detectedSelectors</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Tab Refresh</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="no">NO → 'activated'</td>
+        <td class="no">NO → null</td>
+        <td class="part">STALE → rescanned</td>
+      </tr>
+      <tr>
+        <td>Close Popup</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+      </tr>
+      <tr>
+        <td>Reopen Popup</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+      </tr>
+      <tr>
+        <td>Browser Restart</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="part">YES (stale until page loads)</td>
+        <td class="part">YES (stale until page loads)</td>
+        <td class="part">YES (stale until rescan)</td>
+      </tr>
+      <tr>
+        <td>Extension Reload</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="part">YES (reset on next page event)</td>
+        <td class="part">YES (reset on next page event)</td>
+        <td class="part">YES (stale until rescan)</td>
+      </tr>
+      <tr>
+        <td>SPA Navigation</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="no">NO → 'activated'</td>
+        <td class="no">NO → null</td>
+        <td class="part">Rescan triggered</td>
+      </tr>
+      <tr>
+        <td>Delete Single Email</td>
+        <td class="part">YES (minus deleted)</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+        <td class="yes">YES</td>
+      </tr>
+      <tr>
+        <td>Submit Capture (new email)</td>
+        <td class="yes">YES</td>
+        <td class="part">OVERWRITTEN</td>
+        <td class="no">→ 'active'</td>
+        <td class="part">= capturedEmail</td>
+        <td class="yes">YES</td>
+      </tr>
+      <tr>
+        <td>Extension Uninstall</td>
+        <td class="no">NO</td>
+        <td class="no">NO</td>
+        <td class="no">NO</td>
+        <td class="no">NO</td>
+        <td class="no">NO</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ───────────────────────────────── SECTION 8 ───────────────────────────────── -->
+<div class="section" id="s8">
+  <div class="section-title"><span class="section-num">8</span> Data Flow Diagrams</div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Flow A — Email Capture (Submit)</div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-blue">1</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User focuses email field on Replit</div><div class="fc-sub">focusin event → document listener → onEmailInteraction(e)</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-blue">2</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">e.target.matches() checks 3 selectors</div><div class="fc-sub">input[autocomplete="email"] | input[name="email"] | input[name="username"]</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-orange">3</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">lockContext(target) resolves form + submitBtn</div><div class="fc-sub">emailInput.form ?? closest('form') → findSubmitInForm(form)</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-orange">4</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">storage.set({ previewStatus: 'processing', currentFieldEmail })</div><div class="fc-sub">Message: CONTEXT_LOCKED → popup rerenders Preview tab</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-purple">5</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User clicks Submit / presses Enter</div><div class="fc-sub">mousedown/click/keydown listener fires → makeSubmitHandler(gen)</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-purple">6</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">gen === contextGeneration check passes</div><div class="fc-sub">Stale handlers from previous contexts are rejected here</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-green">7</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">storage.set({ capturedEmail, previewStatus: 'active' })</div><div class="fc-sub">Message: EMAIL_CAPTURED → popup shows Previewing Account</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Flow B — Manual Email Add (Emails Tab)</div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-blue">1</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User clicks + button → Add Emails modal opens</div><div class="fc-sub">openAddModal() → textarea focused</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-orange">2</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User types/pastes emails → clicks Save</div><div class="fc-sub">handleSave() → parseEmails() → validates regex, lowercases, dedupes</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-green">3</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">saveEmails() → chrome.storage.local.set({ vaultmail_emails })</div><div class="fc-sub">renderGrid() → email cards appear with count</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-title">Flow C — Email Delete</div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-red">1</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User clicks trash icon on email card</div><div class="fc-sub">openDeleteModal(email) → pendingDelete = email → confirmation shown</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-red">2</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">User confirms → confirmDelete()</div><div class="fc-sub">emails.filter(e => e !== target) → saveEmails() → card-removing animation</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-gray">3</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">renderGrid() → updated grid shown</div><div class="fc-sub">If last email deleted: emptyState shown</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Flow D — Status / Activation Flow</div>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-gray">1</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">content.js loads on replit.com page</div><div class="fc-sub">storage.set({ previewStatus: 'activated', currentFieldEmail: null }) + send(CONTEXT_RESET)</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-blue">2</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">Popup receives CONTEXT_RESET message</div><div class="fc-sub">previewStatus = 'activated' → renderPreview() → Extension Activated card shown</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-orange">3</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">Email interaction detected → Processing state</div><div class="fc-sub">CONTEXT_LOCKED message → yellow dot on Preview tab</div></div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-line"><div class="flow-circle fc-green">4</div><div class="flow-connector"></div></div>
+        <div class="flow-content"><div class="fc-title">Submit captured → Previewing Account state</div><div class="fc-sub">EMAIL_CAPTURED message → blue dot, email shown in description</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ───────────────────────────────── SECTION 9 ───────────────────────────────── -->
+<div class="section" id="s9">
+  <div class="section-title"><span class="section-num">9</span> Orphaned Data Detection</div>
+
+  <div class="card orphan">
+    <div class="card-title">🔴 background.js — Storage Key Mismatch</div>
+    <p style="font-size:12.5px;color:#fca5a5;margin-bottom:10px">background.js writes keys that popup.js never reads. These silently pollute storage.</p>
+    <table class="audit-table">
+      <thead><tr><th>bg.js writes</th><th>popup.js reads</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>captureStatus</td><td>previewStatus</td><td class="danger">MISMATCH — orphan write</td></tr>
+        <tr><td>currentActiveEmail</td><td>capturedEmail</td><td class="danger">MISMATCH — orphan write</td></tr>
+      </tbody>
+    </table>
+    <div class="orphan-note">background.js was written against an older popup.js API. The current popup.js was refactored to use content.js direct messages, but background.js was not updated to match.</div>
+    <div class="rec">Recommendation: Remove <code>captureStatus</code> and <code>currentActiveEmail</code> writes from background.js, or update them to match current key names <code>previewStatus</code> / <code>capturedEmail</code>.</div>
+  </div>
+
+  <div class="card orphan">
+    <div class="card-title">🔴 background.js — Message Type Mismatch</div>
+    <table class="audit-table">
+      <thead><tr><th>bg.js broadcasts</th><th>popup.js handles</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>STATUS_CHANGED</td><td>Not listed in onMessage switch</td><td class="danger">ORPHAN — never handled</td></tr>
+        <tr><td>ACTIVE_EMAIL_UPDATED</td><td>Not listed in onMessage switch</td><td class="danger">ORPHAN — never handled</td></tr>
+      </tbody>
+    </table>
+    <div class="orphan-note">popup.js handles: CONTEXT_LOCKED, CURRENT_EMAIL_CHANGED, EMAIL_CAPTURED, CONTEXT_RESET, REPLIT_STATUS_CHANGED, SELECTORS_UPDATED. None of these are sent by background.js.</div>
+    <div class="rec">Recommendation: background.js should send <code>REPLIT_STATUS_CHANGED</code> (with <code>active: bool</code>) which popup.js already handles. Remove STATUS_CHANGED and ACTIVE_EMAIL_UPDATED broadcasts.</div>
+  </div>
+
+  <div class="card orphan">
+    <div class="card-title">🔴 replitActive — Undeclared Variable in popup.js</div>
+    <div class="orphan-note">
+      popup.js references <code>replitActive</code> in <code>storage.onChanged</code> listener and in the <code>REPLIT_STATUS_CHANGED</code> message handler, but <code>let replitActive</code> is never declared in the file's state block. This causes a ReferenceError or implicit global in non-strict contexts. Since popup.js uses <code>'use strict'</code>, this will throw at runtime.
+    </div>
+    <div class="rec">Recommendation: Add <code>let replitActive = false;</code> to the state declarations at the top of popup.js. Also add <code>'replitActive'</code> to the <code>loadState()</code> chrome.storage.local.get() call.</div>
+  </div>
+
+  <div class="card orphan">
+    <div class="card-title">🟡 currentFieldEmail — Written to Storage, Not Rendered</div>
+    <div class="orphan-note">
+      <code>currentFieldEmail</code> is written to storage on every keystroke (content.js → onFieldInput) and read by popup.js loadState/onChanged, but it is not currently rendered anywhere in the popup UI. The popup.js <code>CURRENT_EMAIL_CHANGED</code> handler updates the in-memory variable but only calls renderPreview() conditionally — and renderPreview() does not output <code>currentFieldEmail</code> anywhere in the DOM.
+    </div>
+    <div class="rec">Recommendation: Either render <code>currentFieldEmail</code> in the Processing state description, or stop writing it to storage to reduce churn (it updates on every keystroke).</div>
+  </div>
+
+  <div class="card orphan">
+    <div class="card-title">🟡 ensureContextValid() — Dead Code Path</div>
+    <div class="orphan-note">
+      <code>ensureContextValid()</code> existed to handle DOM re-renders (React removing and re-adding submit buttons). It called <code>attachSubmitListeners()</code> — a function that no longer exists in the refactored codebase. The function was also called from <code>makeSubmitHandler()</code>. After the interaction-first refactor, this re-resolution path is partially dead. The <code>attachSubmitListeners</code> reference is undefined.
+    </div>
+    <div class="rec">Recommendation: Remove <code>ensureContextValid()</code> or refactor it to only check DOM presence without re-attaching listeners.</div>
+  </div>
+
+</div>
+
+<!-- ───────────────────────────────── SECTION 10 ───────────────────────────────── -->
+<div class="section" id="s10">
+  <div class="section-title"><span class="section-num">10</span> Final Summary</div>
+
+  <div class="summary-grid">
+    <div class="summary-card">
+      <h4>Permanently Stored Data</h4>
+      <ul>
+        <li><span class="pill pill-green">PERSIST</span> vaultmail_emails</li>
+        <li><span class="pill pill-green">PERSIST</span> capturedEmail</li>
+      </ul>
+    </div>
+    <div class="summary-card">
+      <h4>Temporary Data (session-level)</h4>
+      <ul>
+        <li><span class="pill pill-yellow">TEMP</span> previewStatus</li>
+        <li><span class="pill pill-yellow">TEMP</span> currentFieldEmail</li>
+        <li><span class="pill pill-yellow">TEMP</span> detectedSelectors</li>
+      </ul>
+    </div>
+    <div class="summary-card">
+      <h4>Auto-Deleted / Auto-Reset Data</h4>
+      <ul>
+        <li><span class="pill pill-gray">AUTO</span> previewStatus → 'activated' on page load</li>
+        <li><span class="pill pill-gray">AUTO</span> currentFieldEmail → null on context reset</li>
+        <li><span class="pill pill-gray">AUTO</span> detectedSelectors → overwritten on each scan</li>
+      </ul>
+    </div>
+    <div class="summary-card">
+      <h4>Manually-Deleted Data</h4>
+      <ul>
+        <li><span class="pill pill-red">MANUAL</span> vaultmail_emails (per-item delete)</li>
+        <li><span class="pill pill-red">MANUAL</span> All data (chrome.storage.local.clear)</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="margin-top:16px">
+  <table class="audit-table">
+    <thead>
+      <tr><th>Question</th><th>Answer</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>What does the extension capture?</td><td>Email value from the locked input field at submit time (<code>capturedEmail</code>). Live typing value (<code>currentFieldEmail</code>). Page element presence (<code>detectedSelectors</code>). Manually-added emails (<code>vaultmail_emails</code>).</td></tr>
+      <tr><td>What does it remember across restarts?</td><td><code>vaultmail_emails</code> (all saved emails) and <code>capturedEmail</code> (last submitted email) survive all restarts, reloads, refreshes.</td></tr>
+      <tr><td>What does it forget?</td><td><code>previewStatus</code> (reset to 'activated' on every page load), <code>currentFieldEmail</code> (reset to null), in-memory context (activeEmailInput, activeForm, activeSubmitBtn, contextGeneration).</td></tr>
+      <tr><td>When does it forget?</td><td>On Replit page load/refresh, SPA navigation, context reset (missing form or submit button).</td></tr>
+      <tr><td>What survives all restarts?</td><td><code>vaultmail_emails</code>, <code>capturedEmail</code>.</td></tr>
+      <tr><td>What never touches storage?</td><td>In-content: <code>activeEmailInput</code>, <code>activeForm</code>, <code>activeSubmitBtn</code>, <code>contextLocked</code>, <code>contextGeneration</code>, <code>scanThrottle</code>. In-popup: <code>activeTab</code>, <code>pendingDelete</code>, <code>toastTimer</code>. In-background: <code>tabUrls</code> Map.</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<div style="height:40px"></div>
+</body>
+</html>
