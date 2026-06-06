@@ -5,12 +5,10 @@
 let emails            = [];
 let previewStatus     = 'activated'; // 'activated' | 'processing' | 'active'
 let currentFieldEmail = null;
-let capturedEmail     = null;        // last successfully submitted email (persisted, 2hr TTL)
+let capturedEmail     = null;        // last successfully submitted email (persisted)
 let replitActive      = false;       // true when at least one Replit tab is open
 let activeTab         = 'emails';
 let pendingDelete     = null;
-
-const TTL_MS = 2 * 60 * 60 * 1000; // 2 hours — must match content.js
 
 // ── DOM refs ──────────────────────────────────────────────────
 
@@ -52,16 +50,10 @@ const detectEmpty = document.getElementById('detectEmpty');
 
 function loadState(cb) {
   chrome.storage.local.get(
-    ['vaultmail_emails', 'capturedEmail', 'capturedEmailTs',
-     'previewStatus', 'previewStatusTs', 'currentFieldEmail', 'detectedSelectors'],
+    ['vaultmail_emails', 'capturedEmail', 'previewStatus', 'currentFieldEmail', 'detectedSelectors'],
     (r) => {
-      const now = Date.now();
-
-      // TTL check: expire capturedEmail if older than 2 hours
-      const capturedExpired = r.capturedEmailTs && (now - r.capturedEmailTs) > TTL_MS;
-      capturedEmail     = capturedExpired ? null : (r.capturedEmail || null);
-
       emails            = r.vaultmail_emails  || [];
+      capturedEmail     = r.capturedEmail     || null;
       previewStatus     = r.previewStatus     || 'activated';
       currentFieldEmail = r.currentFieldEmail || null;
       cb(r.detectedSelectors || []);

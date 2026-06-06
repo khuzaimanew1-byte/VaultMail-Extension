@@ -5,17 +5,18 @@
 //
 // Architecture: interaction-first, document-level event delegation
 //
-// CONTEXT ENGINE v2 — spec rules:
+// CONTEXT ENGINE v3 — spec rules:
 //   - ONLY user interaction creates context (input/change events)
-//   - focusin alone does NOT create context
-//   - event.target is the only source of truth
-//   - No DOM scanning, no MutationObserver for context
-//   - Submit detected via document-level click delegation
-//   - 2-hour TTL on all temporary state
+//   - focusin / mousedown do NOT create context and do NOT capture
+//   - event.target is the sole source of truth — no .contains(), no closest()
+//   - Submit captured via click (strict target match) and form submit (Enter key)
+//   - Single-capture guard prevents duplicate capture per submission
+//   - Status-based 5-minute cleanup timers (not fixed TTL)
+//   - Active status never expires; cleanup starts only when status goes inactive
 //   - vaultmail_emails is permanent — never touched here
 // ============================================================
 
-// ── Constants ─────────────────────────────────────────────────
+// ── Email selectors ───────────────────────────────────────────
 
 const EMAIL_SELS = [
   'input[autocomplete="email"]',
@@ -23,18 +24,87 @@ const EMAIL_SELS = [
   'input[name="username"]',
 ];
 
-const TTL_MS = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+// ── Constants ─────────────────────────────────────────────────
+
+const CLEANUP_MS = 5 * 60 * 1000; // 5 minutes — cleanup delay after status goes inactive
 
 // ── Active context (in-memory only) ──────────────────────────
 //
-// activeContext = { emailInput, emailValue, lastUpdated }
-//   - Created only by input/change events on valid email fields
-//   - Discarded and rebuilt on every new valid interaction
-//   - Never created by DOM presence, URL, or focusin
+// Created only by input/change events on a valid email field.
+// Replaced entirely on each new valid interaction.
 
-let activeContext      = null;
+let activeContext      = null; // { emailInput, emailValue, lastUpdated }
 let activeSubmitButton = null;
 let activeForm         = null;
+
+// ── Status tracking (for cleanup timer management) ───────────
+
+let currentStatus = 'activated'; // mirrors last written previewStatus
+
+// ── Cleanup timers (status-based, not time-based TTL) ────────
+//
+// Each timer starts when its status goes inactive.
+// Each timer is cancelled if the same status becomes active again.
+// Only statuses inactive for the full 5 minutes are cleaned up.
+
+let processingCleanupTimer = null;
+let previewCleanupTimer    = null;
+
+function scheduleProcessingCleanup() {
+  clearTimeout(processingCleanupTimer);
+  processingCleanupTimer = setTimeout(() => {
+    processingCleanupTimer = null;
+    chrome.storage.local.set({ currentFieldEmail: null });
+  }, CLEANUP_MS);
+}
+
+function cancelProcessingCleanup() {
+  clearTimeout(processingCleanupTimer);
+  processingCleanupTimer = null;
+}
+
+function schedulePreviewCleanup() {
+  clearTimeout(previewCleanupTimer);
+  previewCleanupTimer = setTimeout(() => {
+    previewCleanupTimer = null;
+    chrome.storage.local.set({
+      capturedEmail: null,
+      previewStatus: 'activated',
+    }, () => { send('CONTEXT_RESET'); });
+  }, CLEANUP_MS);
+}
+
+function cancelPreviewCleanup() {
+  clearTimeout(previewCleanupTimer);
+  previewCleanupTimer = null;
+}
+
+// ── Status transition handler ─────────────────────────────────
+//
+// Called after every previewStatus storage write.
+// Manages cleanup timers based on which statuses become active/inactive.
+
+function onStatusChange(newStatus) {
+  const prev = currentStatus;
+  currentStatus = newStatus;
+
+  // Processing became inactive → start its cleanup timer
+  if (prev === 'processing' && newStatus !== 'processing') scheduleProcessingCleanup();
+  // Processing became active → cancel any pending cleanup
+  if (newStatus === 'processing') cancelProcessingCleanup();
+
+  // Preview became inactive → start its cleanup timer
+  if (prev === 'active' && newStatus !== 'active') schedulePreviewCleanup();
+  // Preview became active → cancel any pending cleanup
+  if (newStatus === 'active') cancelPreviewCleanup();
+}
+
+// ── Single-capture debounce ───────────────────────────────────
+//
+// Prevents duplicate capture when both click and form submit
+// fire within the same user action (e.g. button click → form submit).
+
+let lastCaptureTime = 0;
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -58,34 +128,29 @@ function findSubmitInForm(form) {
 // ── Context creation ──────────────────────────────────────────
 //
 // Called ONLY from input/change event handlers.
-// Immediately discards any previous context and builds a new one.
-// If form or submit button is missing → clear to activated.
+// Discards previous context and builds a new one.
+// If form or submit button missing → clear to activated.
 
 function updateContext(emailInput) {
   const emailValue = emailInput.value.trim();
+  const form       = emailInput.form || emailInput.closest('form');
+  const submitBtn  = findSubmitInForm(form);
 
-  // Resolve form and submit button from the interacted element only
-  const form      = emailInput.form || emailInput.closest('form');
-  const submitBtn = findSubmitInForm(form);
-
-  // All three required; if any missing → no context, return to activated
   if (!form || !submitBtn) {
     clearContext();
     return;
   }
 
-  // Discard previous context; build new one
   activeContext      = { emailInput, emailValue, lastUpdated: Date.now() };
   activeForm         = form;
   activeSubmitButton = submitBtn;
 
-  const ts = Date.now();
   chrome.storage.local.set({
     previewStatus:     'processing',
-    previewStatusTs:   ts,
     currentFieldEmail: emailValue,
   }, () => {
     send('CONTEXT_LOCKED', { email: emailValue });
+    onStatusChange('processing');
   });
 }
 
@@ -96,95 +161,85 @@ function clearContext() {
   activeSubmitButton = null;
   activeForm         = null;
 
-  const ts = Date.now();
   chrome.storage.local.set({
     previewStatus:     'activated',
-    previewStatusTs:   ts,
     currentFieldEmail: null,
   }, () => {
     send('CONTEXT_RESET');
+    onStatusChange('activated');
   });
 }
 
 // ── Email capture ─────────────────────────────────────────────
 //
-// Only a successful capture may update capturedEmail.
-// Processing state never overwrites capturedEmail.
+// Only this function writes capturedEmail.
+// Processing state never writes capturedEmail.
+// Single-capture guard prevents duplicate writes per submission.
 
 function captureEmail() {
   if (!activeContext) return;
 
-  // Always read live value from DOM at capture time
+  // Prevent duplicate capture from simultaneous click + form submit events
+  const now = Date.now();
+  if (now - lastCaptureTime < 500) return;
+  lastCaptureTime = now;
+
   const val = activeContext.emailInput.value.trim().toLowerCase();
   if (!val) return;
 
-  const ts = Date.now();
   chrome.storage.local.set({
-    capturedEmail:   val,
-    capturedEmailTs: ts,
-    previewStatus:   'active',
-    previewStatusTs: ts,
+    capturedEmail: val,
+    previewStatus: 'active',
   }, () => {
     send('EMAIL_CAPTURED', { email: val });
+    onStatusChange('active');
   });
 }
 
 // ── Email interaction handler ─────────────────────────────────
 //
 // Triggered ONLY by input and change events.
-// focusin does NOT create context — focus alone is ignored.
-// Only event.target is evaluated — no other element inspected.
+// focusin is NOT listened to — focus alone does not create context.
+// Only event.target is evaluated. No parent traversal. No DOM scan.
 
 function onEmailEvent(e) {
   const target = e.target;
   if (!target || target.tagName !== 'INPUT') return;
 
-  // Check only e.target against valid selectors — stop if no match
   let matched = false;
   for (const sel of EMAIL_SELS) {
     try { if (target.matches(sel)) { matched = true; break; } } catch (_) {}
   }
   if (!matched) return;
 
-  // Match — update context from this element
   updateContext(target);
 }
 
 document.addEventListener('input',  onEmailEvent, { capture: true });
 document.addEventListener('change', onEmailEvent, { capture: true });
 
-// ── Submit detection (document-level click delegation) ────────
+// ── Submit button click ───────────────────────────────────────
 //
-// Listen at document level. Use event.target to identify the click target.
-// Only act if the clicked element is the tracked activeSubmitButton.
-// Also accepts clicks on child elements inside the button (e.g. inner <span>).
+// Document-level delegation. Strict event.target match only.
+// No .contains(). No parent traversal. No mousedown.
+// If event.target is not exactly activeSubmitButton → return immediately.
 
 document.addEventListener('click', (e) => {
   if (!activeContext || !activeSubmitButton) return;
-  const t = e.target;
-  if (t !== activeSubmitButton && !activeSubmitButton.contains(t)) return;
+  if (e.target !== activeSubmitButton) return;
   captureEmail();
 }, { capture: true });
 
-// mousedown supplement — catches React-intercepted submits that stop click propagation
-document.addEventListener('mousedown', (e) => {
-  if (!activeContext || !activeSubmitButton) return;
-  const t = e.target;
-  if (t !== activeSubmitButton && !activeSubmitButton.contains(t)) return;
-  captureEmail();
-}, { capture: true });
+// ── Form submit (Enter key path) ──────────────────────────────
+//
+// When user presses Enter in the email field, the browser fires a
+// native submit event on the parent form. This listener captures it.
+// No separate keydown listener — Enter key is handled via form submit only.
+// Single-capture guard prevents double capture if click also fires submit.
 
-// Enter key on the active email input
-document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter' || !activeContext) return;
-  if (e.target !== activeContext.emailInput) return;
-  captureEmail();
-}, { capture: true });
-
-// Form submit event (final safety net)
 document.addEventListener('submit', (e) => {
   if (!activeContext || !activeForm) return;
-  if (e.target !== activeForm && !activeForm.contains(e.target)) return;
+  if (e.target !== activeForm) return;
   captureEmail();
 }, { capture: true });
 
@@ -201,36 +256,10 @@ function onNavigate() { clearContext(); }
 
 window.addEventListener('popstate', () => setTimeout(onNavigate, 80));
 
-// ── TTL check (on content script load) ───────────────────────
-//
-// If temporary state is older than 2 hours, expire it.
-// vaultmail_emails is NEVER touched — permanent storage.
-
-function checkTTL() {
-  chrome.storage.local.get(['capturedEmailTs', 'previewStatusTs'], (r) => {
-    const now     = Date.now();
-    const updates = {};
-
-    if (r.capturedEmailTs && (now - r.capturedEmailTs) > TTL_MS) {
-      updates.capturedEmail    = null;
-      updates.capturedEmailTs  = null;
-    }
-
-    // Always reset previewStatus to activated on fresh page load
-    updates.previewStatus   = 'activated';
-    updates.previewStatusTs = now;
-    updates.currentFieldEmail = null;
-
-    chrome.storage.local.set(updates, () => {
-      send('CONTEXT_RESET');
-    });
-  });
-}
-
 // ── Selector detection (display-only panel — NOT used for capture) ────
 //
 // MutationObserver here is ONLY for the Detected Elements UI panel.
-// It does NOT create context. It does NOT affect capture logic.
+// It has no connection to context creation or capture logic.
 
 const PROBE_SELECTORS = [
   { sel: 'input[name="identifier"]',         kind: 'input',  label: 'identifier' },
@@ -257,8 +286,7 @@ function scanSelectors() {
   const found = [];
   for (const probe of PROBE_SELECTORS) {
     try {
-      const els = [...document.querySelectorAll(probe.sel)];
-      for (const el of els) {
+      for (const el of document.querySelectorAll(probe.sel)) {
         found.push({
           sel:     probe.sel,
           label:   probe.label,
@@ -291,4 +319,5 @@ setTimeout(scanSelectors, 3000);
 
 // ── Init ──────────────────────────────────────────────────────
 
-checkTTL();
+chrome.storage.local.set({ previewStatus: 'activated', currentFieldEmail: null });
+send('CONTEXT_RESET');
