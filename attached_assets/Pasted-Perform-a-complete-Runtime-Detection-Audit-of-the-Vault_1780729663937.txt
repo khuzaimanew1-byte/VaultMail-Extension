@@ -1,0 +1,247 @@
+Perform a complete Runtime Detection Audit of the VaultMail extension.
+
+Do NOT modify any code.
+
+Do NOT create any files.
+
+Do NOT generate new functionality.
+
+Only inspect and report the current implementation.
+
+========================================
+DETECTION SYSTEM AUDIT
+======================
+
+Identify every mechanism currently used to detect web elements.
+
+For each mechanism report:
+
+1. What API is being used
+2. Which file uses it
+3. Which function uses it
+4. Why it is being used
+5. How often it runs
+6. Which selectors it targets
+
+Examples:
+
+* querySelector
+* querySelectorAll
+* getElementById
+* getElementsByClassName
+* closest
+* matches
+* MutationObserver
+* document.body listeners
+* document listeners
+* window listeners
+* event delegation
+* click handlers
+* focus handlers
+* input handlers
+* change handlers
+* polling intervals
+* requestAnimationFrame loops
+* storage listeners
+
+========================================
+QUERY SELECTOR AUDIT
+====================
+
+List every location where:
+
+querySelector
+querySelectorAll
+
+is used.
+
+For each occurrence show:
+
+File
+Function
+Selector
+Purpose
+
+Example:
+
+content.js
+detectEmailInputs()
+
+#username-:rv:
+
+Used for email field detection.
+
+========================================
+EVENT AUDIT
+===========
+
+List every event listener currently registered.
+
+Examples:
+
+click
+input
+change
+focus
+blur
+submit
+DOMContentLoaded
+load
+storage
+
+For each event show:
+
+File
+Function
+Target Element
+
+Example:
+
+document
+click
+content.js
+
+Purpose:
+Button detection
+
+========================================
+MUTATION OBSERVER AUDIT
+=======================
+
+Determine whether MutationObserver is used.
+
+If yes:
+
+Show:
+
+File
+Function
+Observed Element
+Options
+
+Example:
+
+childList
+subtree
+attributes
+
+Explain exactly why it exists.
+
+========================================
+INTERVAL AUDIT
+==============
+
+Determine whether any polling exists.
+
+Examples:
+
+setInterval
+setTimeout loops
+recursive timers
+
+Report:
+
+File
+Function
+Frequency
+Purpose
+
+========================================
+EVENT DELEGATION AUDIT
+======================
+
+Determine whether the extension uses:
+
+event.target
+event.currentTarget
+
+Show every location where they are used.
+
+For each occurrence explain:
+
+* why it is used
+* which elements it identifies
+* which state it changes
+
+========================================
+BACKGROUND ACTIVITY AUDIT
+=========================
+
+Determine exactly when the extension is active.
+
+Answer all of the following:
+
+1. Does the extension activate only when a Replit tab is visible?
+
+2. Does the extension activate when a Replit tab exists in the browser but is not focused?
+
+3. Does the extension continue running when another tab is selected?
+
+4. Does background.js continue monitoring Replit tabs when they are inactive?
+
+5. Does content.js continue running when the Replit tab is open but not focused?
+
+6. Does popup.js run only when popup is open?
+
+========================================
+REPLIT TAB LOGIC
+================
+
+Identify all logic related to:
+
+https://replit.com/
+
+Show:
+
+File
+Function
+Condition
+
+Examples:
+
+tabs.onUpdated
+tabs.onActivated
+URL matching
+content script injection
+
+Explain exactly what triggers activation.
+
+========================================
+LIFECYCLE REPORT
+================
+
+Provide a final summary:
+
+What runs continuously?
+
+What runs only on interaction?
+
+What runs only when popup opens?
+
+What runs only when Replit is open?
+
+What runs only when Replit tab is focused?
+
+What runs even when Replit tab is in the background?
+
+========================================
+FINAL ANSWER
+============
+
+At the end provide a plain English answer:
+
+"Is the extension active only when Replit is the currently visible tab?"
+
+Answer with:
+
+YES
+NO
+PARTIALLY
+
+and explain why using actual code findings.
+
+Do not suggest improvements.
+
+Do not refactor.
+
+Only audit the existing implementation and report factual findings from the codebase.
